@@ -26,7 +26,7 @@ abstract class CellularBase implements Cellular:
 
   uart_/uart.Port
   at_session_/at.Session
-  at_/Locker
+  at_/TraceSquelchingLocker
 
   default_baud_rate/int
   preferred_baud_rate/int?
@@ -50,7 +50,7 @@ abstract class CellularBase implements Cellular:
       --.use_psm
       --at_should_trace=(:: true):
 
-    at_ = Locker at_session_ at_should_trace
+    at_ = TraceSquelchingLocker at_session_ at_should_trace
 
   abstract iccid -> string
 

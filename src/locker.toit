@@ -5,7 +5,7 @@
 import at
 
 /** The locker wraps an $at.Locker and removes all unwanted trace. */
-class Locker:
+class TraceSquelchingLocker:
   at_/at.Locker
   default_should_trace/Lambda
 
