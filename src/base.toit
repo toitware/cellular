@@ -9,6 +9,7 @@ import net
 import monitor
 
 import .cellular
+import .locker
 
 REGISTRATION_DENIED_ERROR ::= "registration denied"
 
@@ -25,7 +26,7 @@ abstract class CellularBase implements Cellular:
 
   uart_/uart.Port
   at_session_/at.Session
-  at_/at.Locker
+  at_/Locker
 
   default_baud_rate/int
   preferred_baud_rate/int?
@@ -46,9 +47,10 @@ abstract class CellularBase implements Cellular:
       --.constants
       --.default_baud_rate=Cellular.DEFAULT_BAUD_RATE
       --.preferred_baud_rate=null
-      --.use_psm:
+      --.use_psm
+      --at_should_trace=(:: true):
 
-    at_ = at.Locker at_session_
+    at_ = Locker at_session_ at_should_trace
 
   abstract iccid -> string
 
