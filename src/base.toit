@@ -83,7 +83,7 @@ abstract class CellularBase implements Cellular:
   scan_for_operators -> List:
     operators := []
     at_.do: | session/at.Session |
-      result := session.send COPS.scan
+      result := send_cops_ session COPS.scan
       operators = result.last
 
     result := []
@@ -106,7 +106,7 @@ abstract class CellularBase implements Cellular:
 
     at_.do: | session/at.Session |
       if not operator:
-        session.send COPS.automatic
+        send_cops_ session COPS.automatic
 
       // Set operator after enabling the radio.
       is_connected = wait_for_connected_ session operator
@@ -117,7 +117,7 @@ abstract class CellularBase implements Cellular:
   get_connected_operator -> Operator?:
     catch --trace:
       at_.do: | session/at.Session |
-        res := (session.send COPS.read).last
+        res := (send_cops_ session COPS.read).last
         if res.size == 4 and res[1] == COPS.FORMAT_NUMERIC and res[2] is string and res[2].size == 5:
           return Operator res[2]
     return null
@@ -254,8 +254,7 @@ abstract class CellularBase implements Cellular:
 
     try:
       if operator:
-        result := session.send
-            COPS.manual operator.op --rat=operator.rat
+        result := send_cops_ session (COPS.manual operator.op --rat=operator.rat)
 
       // Enable events.
       session.set "+CEREG" [2]
