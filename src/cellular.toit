@@ -81,7 +81,7 @@ interface Cellular:
 
   reset -> none
 
-  on_connect_aborted session/at.Session -> none
+  on_cops_aborted session/at.Session -> none
 
 class Operator:
   op/string

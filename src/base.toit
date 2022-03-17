@@ -225,11 +225,12 @@ abstract class CellularBase implements Cellular:
 
   set_up_wait_for_ session/at.Session cmd/string connected/monitor.Latch  --on_connect/Lambda=(:: null) -> none:
     session.register_urc cmd ::
-      if it.first == 1 or it.first == 5:
+      state := it.first
+      if state == 1 or state == 5:
         connected.set true
         on_connect.call
-      if it.first == 3: connected.set REGISTRATION_DENIED_ERROR
-      if it.first == 80: connected.set "connection lost"
+      if state == 3: connected.set REGISTRATION_DENIED_ERROR
+      if state == 80: connected.set "connection lost"
 
   check_connected_ session/at.Session cmd/string connected/monitor.Latch --on_connect/Lambda=(:: null) -> bool:
       res := session.read cmd
@@ -238,6 +239,8 @@ abstract class CellularBase implements Cellular:
         connected.set true
         on_connect.call
         return true
+      if state == 3: connected.set REGISTRATION_DENIED_ERROR
+      if state == 80: connected.set "connection lost"
       return false
 
   wait_for_connected_ session/at.Session operator/Operator? -> bool:
@@ -254,7 +257,7 @@ abstract class CellularBase implements Cellular:
 
     try:
       if operator:
-        result := send_cops_ session (COPS.manual operator.op --rat=operator.rat)
+        send_cops_ session (COPS.manual operator.op --rat=operator.rat)
 
       // Enable events.
       session.set "+CEREG" [2]
@@ -283,10 +286,10 @@ abstract class CellularBase implements Cellular:
     try:
       return session.send cops
     finally: | is_exception exception |
-      if is_exception and exception.value == DEADLINE_EXCEEDED_ERROR:
-        on_connect_aborted session
+      if is_exception and exception.value == at.COMMAND_TIMEOUT_ERROR:
+        on_cops_aborted session
 
-  on_connect_aborted session/at.Session -> none:
+  on_cops_aborted session/at.Session -> none:
     // Do nothing by default.
 
   abstract set_baud_rate_ session/at.Session baud_rate/int
