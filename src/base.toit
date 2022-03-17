@@ -123,7 +123,8 @@ abstract class CellularBase implements Cellular:
     return null
 
   detach:
-    at_.do: it.send COPS.deregister
+    at_.do: | session/at.Session |
+      send_cops_ session COPS.deregister
 
   signal_strength -> float?:
     e := catch:
