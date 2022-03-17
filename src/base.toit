@@ -285,9 +285,9 @@ abstract class CellularBase implements Cellular:
       return session.send cops
     finally: | is_exception exception |
       if is_exception and exception.value == DEADLINE_EXCEEDED_ERROR:
-        on_connect_aborted
+        on_connect_aborted session
 
-  on_connect_aborted -> none:
+  on_connect_aborted session/at.Session -> none:
     // Do nothing by default.
 
   abstract set_baud_rate_ session/at.Session baud_rate/int

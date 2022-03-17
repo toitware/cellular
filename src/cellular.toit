@@ -2,6 +2,7 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
+import at
 import net
 import encoding.ubjson
 import gnss_location show GnssLocation
@@ -80,7 +81,7 @@ interface Cellular:
 
   reset -> none
 
-  on_connect_aborted -> none
+  on_connect_aborted session/at.Session -> none
 
 class Operator:
   op/string
