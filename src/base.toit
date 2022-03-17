@@ -243,7 +243,7 @@ abstract class CellularBase implements Cellular:
   wait_for_connected_ session/at.Session operator/Operator? -> bool:
     connected := monitor.Latch
 
-    failed_to_connect = false
+    failed_to_connect = true
     is_lte_connection_ = false
 
     set_up_wait_for_ session "+CEREG" connected
@@ -254,9 +254,8 @@ abstract class CellularBase implements Cellular:
 
     try:
       if operator:
-        timeout := Duration --us=(task.deadline - Time.monotonic_us)
         result := session.send
-          COPS.manual operator.op --timeout=timeout --rat=operator.rat
+            COPS.manual operator.op --rat=operator.rat
 
       // Enable events.
       session.set "+CEREG" [2]
@@ -271,16 +270,25 @@ abstract class CellularBase implements Cellular:
 
       result := wait_for_urc_ --session=session: connected.get
       if result is string:
-        failed_to_connect = true
         logger_.debug "connection failed" --tags={"error": result}
         return false
     finally:
       session.unregister_urc "+CEREG"
       if support_gsm_: session.unregister_urc "+CGREG"
 
+    failed_to_connect = false
     on_connected_ session
-
     return true
+
+  send_cops_ session/at.Session cops/at.Command -> at.Result:
+    try:
+      return session.send cops
+    finally: | is_exception exception |
+      if is_exception and exception.value == DEADLINE_EXCEEDED_ERROR:
+        on_connect_aborted
+
+  on_connect_aborted -> none:
+    // Do nothing by default.
 
   abstract set_baud_rate_ session/at.Session baud_rate/int
   abstract network_interface -> net.Interface

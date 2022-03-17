@@ -80,6 +80,8 @@ interface Cellular:
 
   reset -> none
 
+  on_connect_aborted -> none
+
 class Operator:
   op/string
   rat/int?
