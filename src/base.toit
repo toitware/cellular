@@ -333,22 +333,27 @@ class CFUN extends at.Command:
 
 class COPS extends at.Command:
   // COPS times out after 180s, but since it can be aborted, any timeout can be used.
-  static TIMEOUT ::= Duration --m=3
+  static MAX_TIMEOUT ::= Duration --m=3
   static FORMAT_NUMERIC ::= 2
 
-  constructor.manual operator --timeout=TIMEOUT --rat=null:
+  constructor.manual operator --rat=null:
     args := [1, FORMAT_NUMERIC, operator]
     if rat: args.add rat
-    super.set "+COPS" --parameters=args --timeout=timeout
+    super.set "+COPS" --parameters=args --timeout=compute_timeout
 
-  constructor.automatic --timeout=TIMEOUT:
-    super.set "+COPS" --parameters=[0, FORMAT_NUMERIC] --timeout=timeout
+  constructor.automatic:
+    super.set "+COPS" --parameters=[0, FORMAT_NUMERIC] --timeout=compute_timeout
 
   constructor.deregister:
     super.set "+COPS" --parameters=[2]
 
-  constructor.scan --timeout=TIMEOUT:
-    super.test "+COPS" --timeout=timeout
+  constructor.scan:
+    super.test "+COPS" --timeout=compute_timeout
 
-  constructor.read --timeout=TIMEOUT:
-    super.read "+COPS" --timeout=timeout
+  constructor.read:
+    super.read "+COPS" --timeout=compute_timeout
+
+  // We use the deadline in the task to let the AT processor know that we can abort
+  // the COPS operation by sending more AT commands.
+  static compute_timeout -> Duration:
+    return min MAX_TIMEOUT (Duration --us=(task.deadline - Time.monotonic_us))
