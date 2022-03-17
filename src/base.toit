@@ -345,7 +345,7 @@ class COPS extends at.Command:
     super.set "+COPS" --parameters=[0, FORMAT_NUMERIC] --timeout=compute_timeout
 
   constructor.deregister:
-    super.set "+COPS" --parameters=[2]
+    super.set "+COPS" --parameters=[2] --timeout=compute_timeout
 
   constructor.scan:
     super.test "+COPS" --timeout=compute_timeout
