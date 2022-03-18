@@ -279,8 +279,7 @@ abstract class CellularBase implements Cellular:
       session.unregister_urc "+CEREG"
       if support_gsm_: session.unregister_urc "+CGREG"
 
-    if operator:
-      on_connected_ session
+    on_connected_ session
     failed_to_connect = false
     return true
 
