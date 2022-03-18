@@ -83,7 +83,7 @@ abstract class CellularBase implements Cellular:
   scan_for_operators -> List:
     operators := []
     at_.do: | session/at.Session |
-      result := send_cops_ session COPS.scan
+      result := send_abortable_ session COPS.scan
       operators = result.last
 
     result := []
@@ -106,7 +106,7 @@ abstract class CellularBase implements Cellular:
 
     at_.do: | session/at.Session |
       if not operator:
-        send_cops_ session COPS.automatic
+        send_abortable_ session COPS.automatic
 
       // Set operator after enabling the radio.
       is_connected = wait_for_connected_ session operator
@@ -117,14 +117,14 @@ abstract class CellularBase implements Cellular:
   get_connected_operator -> Operator?:
     catch --trace:
       at_.do: | session/at.Session |
-        res := (send_cops_ session COPS.read).last
+        res := (send_abortable_ session COPS.read).last
         if res.size == 4 and res[1] == COPS.FORMAT_NUMERIC and res[2] is string and res[2].size == 5:
           return Operator res[2]
     return null
 
   detach:
     at_.do: | session/at.Session |
-      send_cops_ session COPS.deregister
+      send_abortable_ session COPS.deregister
 
   signal_strength -> float?:
     e := catch:
@@ -258,7 +258,7 @@ abstract class CellularBase implements Cellular:
 
     try:
       if operator:
-        send_cops_ session (COPS.manual operator.op --rat=operator.rat)
+        send_abortable_ session (COPS.manual operator.op --rat=operator.rat)
 
       // Enable events.
       session.set "+CEREG" [2]
@@ -279,18 +279,18 @@ abstract class CellularBase implements Cellular:
       session.unregister_urc "+CEREG"
       if support_gsm_: session.unregister_urc "+CGREG"
 
-    failed_to_connect = false
     on_connected_ session
+    failed_to_connect = false
     return true
 
-  send_cops_ session/at.Session cops/at.Command -> at.Result:
+  send_abortable_ session/at.Session command/at.Command -> at.Result:
     try:
-      return session.send cops
+      return session.send command
     finally: | is_exception exception |
       if is_exception and exception.value == at.COMMAND_TIMEOUT_ERROR:
-        on_cops_aborted session
+        on_aborted_command session command
 
-  on_cops_aborted session/at.Session -> none:
+  on_aborted_command session/at.Session command/at.Command -> none:
     // Do nothing by default.
 
   abstract set_baud_rate_ session/at.Session baud_rate/int
@@ -330,7 +330,6 @@ class CFUN extends at.Command:
 
   constructor.get:
     super.read "+CFUN" --timeout=TIMEOUT
-
 
 class COPS extends at.Command:
   // COPS times out after 180s, but since it can be aborted, any timeout can be used.
