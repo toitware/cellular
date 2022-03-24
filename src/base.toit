@@ -95,11 +95,8 @@ abstract class CellularBase implements Cellular:
     return result
 
   connect_psm:
-    e := catch:
-      at_.do: | session/at.Session |
-        wait_for_connected_ session null
-    if e:
-      logger_.warn "error connecting to operator" --tags={"error": "$e"}
+    at_.do: | session/at.Session |
+      wait_for_connected_ session null
 
   connect --operator/Operator?=null -> bool:
     is_connected := false
