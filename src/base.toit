@@ -56,6 +56,9 @@ abstract class CellularBase implements Cellular:
 
   abstract close -> none
 
+  close_uart -> none:
+    uart_.close
+
   support_gsm_ -> bool:
     return false
 
