@@ -61,6 +61,7 @@ interface Cellular:
   detach -> none
 
   close -> none
+  close_uart -> none
 
   signal_strength -> float?
 
