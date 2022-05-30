@@ -160,8 +160,11 @@ abstract class CellularBase implements Cellular:
     session.set "+CGDCONT" [cid_, "IP", apn]
 
   wait_for_ready_ session/at.Session:
-    power_on
     while true:
+      // We try to power on the modem a number of
+      // times (until we run out of time) to improve
+      // the robustness of the power on sequence.
+      power_on
       if select_baud_ session: break
 
   enter_configuration_mode_ session/at.Session:
@@ -175,7 +178,11 @@ abstract class CellularBase implements Cellular:
       baud_rates.do: | rate |
         uart_.set_baud_rate rate
         if is_ready_ session:
-          // Apply the preferred baud rate.
+          // If the current rate isn't the preferred one, we assume
+          // we can change it to the preferred one. If it already is
+          // the preferred one, it is enough for us to know that we
+          // can talk to the modem using the rate, so we conclude
+          // that we correctly configured the rate.
           if rate != preferred:
             set_baud_rate_ session preferred
           return true
