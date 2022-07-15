@@ -363,4 +363,7 @@ class COPS extends at.Command:
   // We use the deadline in the task to let the AT processor know that we can abort
   // the COPS operation by sending more AT commands.
   static compute_timeout -> Duration:
-    return min MAX_TIMEOUT (Duration --us=(task.deadline - Time.monotonic_us))
+    if task.deadline == null:
+      return MAX_TIMEOUT
+    else:
+      return min MAX_TIMEOUT (Duration --us=(task.deadline - Time.monotonic_us))
