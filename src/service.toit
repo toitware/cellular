@@ -25,7 +25,7 @@ pin config/Map key/string -> gpio.Pin?:
   pin := gpio.Pin value[0]
   mode := value[1]
   if mode != cellular.CONFIG_ACTIVE_HIGH: pin = gpio.InvertedPin pin
-  pin.config --output --open_drain=(mode == cellular.CONFIG_OPEN_DRAIN)
+  pin.configure --output --open_drain=(mode == cellular.CONFIG_OPEN_DRAIN)
   pin.set 0  // Drive to in-active.
   return pin
 
@@ -56,14 +56,8 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
 
   handle pid/int client/int index/int arguments/any -> any:
     if index == CellularService.CONNECT_INDEX:
-      return connect client (build_config arguments[0] arguments[1])
+      return connect client arguments
     return super pid client index arguments
-
-  static build_config keys/List? values/List -> Map?:
-    if not keys: return null
-    config ::= {:}
-    keys.size.repeat: config[keys[it]] = values[it]
-    return config
 
   abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> Cellular
 
@@ -103,7 +97,7 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
     try:
       driver_.close
       if rts_:
-        rts_.config --output
+        rts_.configure --output
         rts_.set 0
       wait_for_quiescent_ rx_
     finally:
@@ -147,7 +141,7 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
 
     // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait_for_quiescent_ pin/gpio.Pin:
-    pin.config --input
+    pin.configure --input
     while true:
       value := pin.get
 
