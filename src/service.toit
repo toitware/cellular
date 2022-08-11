@@ -32,7 +32,7 @@ pin config/Map key/string -> gpio.Pin?:
 abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinition:
   // ... explain why these are here ...
   static MAJOR /int ::= 0
-  static MINOR /int ::= 1
+  static MINOR /int ::= 2
 
   // TODO(kasper): Let this be configurable.
   static SUSTAIN_FOR_DURATION_ ::= Duration --ms=100
