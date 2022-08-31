@@ -44,7 +44,12 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
   rats_/List? := null
 
   rx_/gpio.Pin? := null
+  tx_/gpio.Pin? := null
+  cts_/gpio.Pin? := null
   rts_/gpio.Pin? := null
+
+  power_/gpio.Pin? := null
+  reset_/gpio.Pin? := null
 
   driver_/Cellular? := null
 
@@ -101,33 +106,33 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
         rts_.set 0
       wait_for_quiescent_ rx_
     finally:
+      close_pins_
       apn_ = bands_ = rats_ = null
-      rx_ = rts_ = null
       driver_ = null
 
   open_driver -> Cellular:
     baud_rate := config_.get cellular.CONFIG_UART_BAUD_RATE
         --if_absent=: Cellular.DEFAULT_BAUD_RATE
 
-    tx := pin config_ cellular.CONFIG_UART_TX
-    rx_ = pin config_ cellular.CONFIG_UART_RX
-    cts := pin config_ cellular.CONFIG_UART_CTS
+    tx_  = pin config_ cellular.CONFIG_UART_TX
+    rx_  = pin config_ cellular.CONFIG_UART_RX
+    cts_ = pin config_ cellular.CONFIG_UART_CTS
     rts_ = pin config_ cellular.CONFIG_UART_RTS
 
-    power := pin config_ cellular.CONFIG_POWER
-    reset := pin config_ cellular.CONFIG_RESET
+    power_ = pin config_ cellular.CONFIG_POWER
+    reset_ = pin config_ cellular.CONFIG_RESET
 
     port := uart.Port
         --baud_rate=baud_rate
-        --tx=tx
+        --tx=tx_
         --rx=rx_
-        --cts=cts
+        --cts=cts_
         --rts=rts_
 
     driver := create_driver
         --port=port
-        --power=power
-        --reset=reset
+        --power=power_
+        --reset=reset_
 
     try:
       driver.wait_for_ready
@@ -138,6 +143,16 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
         // TODO(kasper): There probably isn't a need to do this before
         // configure has succeeded.
         driver.close
+        close_pins_
+
+  close_pins_ -> none:
+    if tx_: tx_.close
+    if rx_: rx_.close
+    if cts_: cts_.close
+    if rts_: rts_.close
+    if power_: power_.close
+    if reset_: reset_.close
+    tx_ = rx_ = cts_ = rts_ = power_ = reset_ = null
 
     // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait_for_quiescent_ pin/gpio.Pin:
