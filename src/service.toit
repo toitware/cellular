@@ -5,6 +5,7 @@
 import esp32
 import gpio
 import uart
+import log
 
 import net
 import net.cellular
@@ -65,6 +66,11 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
     return super pid client index arguments
 
   abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> Cellular
+
+  create_logger -> log.Logger:
+    // TODO(kasper): Use cellular.CONFIG_LOG_LEVEL.
+    level := config_ ? config_.get "log.level" : null
+    return (level is int) ? (log.Logger level log.DefaultTarget) : log.default
 
   connect client/int config/Map? -> List:
     if not config:
