@@ -68,8 +68,7 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
   abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> Cellular
 
   create_logger -> log.Logger:
-    // TODO(kasper): Use cellular.CONFIG_LOG_LEVEL.
-    level := config_ ? config_.get "log.level" : null
+    level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
     return (level is int) ? (log.Logger level log.DefaultTarget) : log.default
 
   connect client/int config/Map? -> List:
