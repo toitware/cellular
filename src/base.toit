@@ -374,8 +374,3 @@ class COPS extends at.Command:
     return deadline
         ? min MAX_TIMEOUT (Duration --us=deadline - Time.monotonic_us)
         : MAX_TIMEOUT
-
-class SignalQuality:
-  power/float?
-  quality/float?
-  constructor --.power --.quality:

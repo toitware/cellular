@@ -64,6 +64,7 @@ interface Cellular:
   close_uart -> none
 
   signal_strength -> float?
+  signal_quality -> SignalQuality?
 
   wait_for_ready -> none
 
@@ -97,3 +98,8 @@ interface Gnss:
   gnss_start
   gnss_location -> GnssLocation?
   gnss_stop
+
+class SignalQuality:
+  power/float?
+  quality/float?
+  constructor --.power --.quality:
