@@ -127,11 +127,18 @@ abstract class CellularBase implements Cellular:
       send_abortable_ session COPS.deregister
 
   signal_strength -> float?:
+    quality := signal_quality
+    return quality ? quality.power : null
+
+  signal_quality -> SignalQuality?:
     e := catch:
       res := at_.do: it.action "+CSQ"
-      signal_power := res.single[0]
-      if signal_power == 99: return null
-      return signal_power / 31.0
+      values := res.single
+      power := values[0]
+      power = (power == 99) ? null : power / 31.0
+      quality := values[1]
+      quality = (quality == 99) ? null : quality / 7.0
+      return SignalQuality --power=power --quality=quality
     logger_.info "failed to read signal strength" --tags={"error": "$e"}
     return null
 
@@ -367,3 +374,8 @@ class COPS extends at.Command:
       return MAX_TIMEOUT
     else:
       return min MAX_TIMEOUT (Duration --us=(task.deadline - Time.monotonic_us))
+
+class SignalQuality:
+  power/float?
+  quality/float?
+  constructor --.power --.quality:
