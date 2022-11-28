@@ -213,9 +213,15 @@ abstract class CellularBase implements Cellular:
     sleep --ms=100
 
     // Disable echo.
-    session.action "E0"
+    response = session.action "E0" --no-check
+    if response == null:
+      return false
+
     // Verbose errors.
-    session.set "+CMEE" [2]
+    response = session.set "+CMEE" [2] --no-check
+    if response == null:
+      return false
+
     // TODO(anders): This is where we want to use an optional PIN:
     //   session.set "+CPIN" ["1234"]
 
