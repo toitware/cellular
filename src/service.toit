@@ -2,13 +2,16 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-import esp32
 import gpio
 import uart
 import log
 
 import net
 import net.cellular
+
+import encoding.tison
+import system.firmware
+import system.assets
 
 import system.api.network show NetworkService
 import system.api.cellular show CellularService
@@ -73,8 +76,11 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
 
   connect client/int config/Map? -> List:
     if not config:
-      image ::= esp32.image_config or {:}
-      config = image.get "cellular" --if_absent=: {:}
+      config = firmware.config["cellular"]
+      if not config:
+        config = {:}
+        assets.decode.get "cellular" --if_present=: | encoded |
+          catch --trace: config = tison.decode encoded
     // TODO(kasper): This isn't a super elegant way of dealing with
     // the current configuration. Should we pass it through to $open_network
     // somehow instead?
