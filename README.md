@@ -1,6 +1,9 @@
 # Cellular
 
-Interfaces and implementations of cellular drivers.
+This package contains cellular drivers for a selection of cellular modems written
+in the [Toit language](https://toitlang.org). The drivers are open source under a
+[permissive license](LICENSE) and they are easy to encapsulate and run in separate
+containers, providing a high-level network interface for standalone applications.
 
 ## Supported modems
 
