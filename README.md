@@ -14,5 +14,5 @@ Interfaces and implementations of cellular drivers.
 
 ### u-blox
 
-- [Sara R4](src/modules/u-blox/sara_r4.toit)
-- [Sara R5](src/modules/u-blox/sara_r5.toit)
+- [Sara R4](src/modules/ublox/sara_r4.toit)
+- [Sara R5](src/modules/ublox/sara_r5.toit)
