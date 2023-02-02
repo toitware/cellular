@@ -3,11 +3,11 @@
 // found in the LICENSE file.
 
 import log
-import at
 import uart
 import net
 import monitor
 
+import .at as at
 import .cellular
 
 REGISTRATION_DENIED_ERROR ::= "registration denied"
@@ -186,7 +186,7 @@ abstract class CellularBase implements Cellular:
     baud_rates := [preferred, default_baud_rate]
     count.repeat:
       baud_rates.do: | rate |
-        uart_.set_baud_rate rate
+        uart_.baud_rate = rate
         if is_ready_ session:
           // If the current rate isn't the preferred one, we assume
           // we can change it to the preferred one. If it already is
@@ -370,10 +370,10 @@ class COPS extends at.Command:
   // We use the deadline in the task to let the AT processor know that we can abort
   // the COPS operation by sending more AT commands.
   static compute_timeout -> Duration:
-    if task.deadline == null:
+    if Task.current.deadline == null:
       return MAX_TIMEOUT
     else:
-      return min MAX_TIMEOUT (Duration --us=(task.deadline - Time.monotonic_us))
+      return min MAX_TIMEOUT (Duration --us=(Task.current.deadline - Time.monotonic_us))
 
 class SignalQuality:
   power/float?

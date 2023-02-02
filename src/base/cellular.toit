@@ -2,10 +2,10 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-import at
 import net
-import encoding.ubjson
-import gnss_location show GnssLocation
+
+import .at as at
+import .location show GnssLocation
 
 RAT_LTE_M ::= 1
 RAT_NB_IOT ::= 2
@@ -15,7 +15,7 @@ RAT_GSM ::= 3
 Base for Cellular drivers for embedding in the kernel.
 */
 interface Cellular:
-  static DEFAULT_BAUD_RATE/int ::= 115200
+  static DEFAULT_BAUD_RATE/int ::= 115_200
 
   use_psm -> bool
   use_psm= value/bool -> none

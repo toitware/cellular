@@ -1,4 +1,1 @@
-dependencies:
-  gnss_location:
-    url: github.com/toitware/toit-gnss-location
-    version: ^1.0.2
+name: cellular
