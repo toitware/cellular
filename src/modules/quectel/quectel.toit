@@ -211,6 +211,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
     remote_address_ = address
 
   write data/ByteArray from=0 to=data.size -> int:
+    if not remote_address_: throw "NOT_CONNECTED"
     if from != 0 or to != data.size: data = data[from..to]
     return send_ remote_address_ data
 
