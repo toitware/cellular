@@ -23,11 +23,12 @@ class BG96Service extends CellularServiceProvider:
   constructor:
     super "quectel/bg96" --major=0 --minor=1 --patch=0
 
-  create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> cellular.Cellular:
+  create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? --baud_rates/List? -> cellular.Cellular:
     return BG96 port
         --logger=create_logger
         --pwrkey=power
         --rstkey=reset
+        --baud_rates=baud_rates
         --is_always_online=true
 
 /**
@@ -37,10 +38,10 @@ class BG96 extends QuectelCellular:
   pwrkey/gpio.Pin?
   rstkey/gpio.Pin?
 
-  constructor uart/uart.Port --logger=log.default --.pwrkey=null --.rstkey=null --is_always_online/bool:
+  constructor uart/uart.Port --logger=log.default --.pwrkey=null --.rstkey=null --baud_rates/List? --is_always_online/bool:
     super uart
         --logger=logger
-        --preferred_baud_rate=921600
+        --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
         --use_psm=not is_always_online
 
   on_connected_ session/at.Session:

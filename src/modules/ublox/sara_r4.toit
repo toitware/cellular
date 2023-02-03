@@ -23,11 +23,12 @@ class SaraR4Service extends CellularServiceProvider:
   constructor:
     super "ublox/sara_r4" --major=0 --minor=1 --patch=0
 
-  create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> cellular.Cellular:
+  create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? --baud_rates/List? -> cellular.Cellular:
     return SaraR4 port
         --logger=create_logger
         --pwr_on=power
         --reset_n=reset
+        --uart_baud_rates=baud_rates or [460_800, cellular.Cellular.DEFAULT_BAUD_RATE]
         --is_always_online=true
 
 /**
@@ -44,14 +45,19 @@ class SaraR4 extends UBloxCellular:
   pwr_on/gpio.Pin?
   reset_n/gpio.Pin?
 
-  constructor uart/uart.Port --logger=log.default --.pwr_on=null --.reset_n=null --is_always_online/bool:
+  constructor uart/uart.Port
+      --logger=log.default
+      --.pwr_on=null
+      --.reset_n=null
+      --uart_baud_rates/List
+      --is_always_online/bool:
     super
       uart
       --logger=logger
       --config=CONFIG_
       --cat_m1
       --cat_nb1
-      --preferred_baud_rate=460_800
+      --uart_baud_rates=uart_baud_rates
       --async_socket_connect
       --async_socket_close
       --use_psm=not is_always_online
