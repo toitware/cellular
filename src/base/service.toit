@@ -127,8 +127,9 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   open_driver -> Cellular:
     uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
         --if_present=: it is List ? it : [it]
-    uart_high_priority/bool? := config_.get cellular.CONFIG_UART_PRIORITY
+    uart_high_priority/bool := config_.get cellular.CONFIG_UART_PRIORITY
         --if_present=: it == cellular.CONFIG_PRIORITY_HIGH
+        --if_absent=: false
 
     tx_  = pin config_ cellular.CONFIG_UART_TX
     rx_  = pin config_ cellular.CONFIG_UART_RX
