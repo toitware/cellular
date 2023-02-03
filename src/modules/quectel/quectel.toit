@@ -282,15 +282,13 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
   constructor
       uart/uart.Port
       --logger=log.default
-      --default_baud_rate=Cellular.DEFAULT_BAUD_RATE
-      --preferred_baud_rate=null
+      --uart_baud_rates/List
       --use_psm:
     at_session := configure_at_ uart logger
 
     super uart at_session
       --constants=QuectelConstants
-      --default_baud_rate=default_baud_rate
-      --preferred_baud_rate=preferred_baud_rate
+      --uart_baud_rates=uart_baud_rates
       --use_psm=use_psm
     at_session.register_urc "+QIOPEN":: | args |
       sockets_.get args[0]

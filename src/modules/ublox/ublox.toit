@@ -278,7 +278,7 @@ abstract class UBloxCellular extends CellularBase:
       --config/Map={:}
       --.cat_m1=false
       --.cat_nb1=false
-      --default_baud_rate=Cellular.DEFAULT_BAUD_RATE
+      --uart_baud_rates/List
       --preferred_baud_rate=null
       --.async_socket_connect=false
       --.async_socket_close=false
@@ -288,8 +288,7 @@ abstract class UBloxCellular extends CellularBase:
 
     super uart at_session
       --constants=UBloxConstants
-      --default_baud_rate=default_baud_rate
-      --preferred_baud_rate=preferred_baud_rate
+      --uart_baud_rates=uart_baud_rates
       --use_psm=use_psm
 
     // TCP read event.

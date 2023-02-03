@@ -23,12 +23,12 @@ abstract class CellularBase implements Cellular:
   sockets_/Map ::= {:}
   logger_ ::= (log.default.with_name "driver").with_name "cellular"
 
-  uart_/uart.Port
   at_session_/at.Session
   at_/at.Locker
 
-  default_baud_rate/int
-  preferred_baud_rate/int?
+  uart_/uart.Port
+  uart_baud_rates/List
+
   cid_ := 1
 
   failed_to_connect/bool := false
@@ -43,11 +43,9 @@ abstract class CellularBase implements Cellular:
       .uart_
       .at_session_
       --logger=log.default
+      --.uart_baud_rates
       --.constants
-      --.default_baud_rate=Cellular.DEFAULT_BAUD_RATE
-      --.preferred_baud_rate=null
       --.use_psm:
-
     at_ = at.Locker at_session_
 
   abstract iccid -> string
@@ -182,10 +180,9 @@ abstract class CellularBase implements Cellular:
     wait_for_sim_ session
 
   select_baud_ session/at.Session --count=5:
-    preferred := preferred_baud_rate or default_baud_rate
-    baud_rates := [preferred, default_baud_rate]
+    preferred := uart_baud_rates.first
     count.repeat:
-      baud_rates.do: | rate |
+      uart_baud_rates.do: | rate |
         uart_.baud_rate = rate
         if is_ready_ session:
           // If the current rate isn't the preferred one, we assume

@@ -71,7 +71,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       return connect client arguments
     return super pid client index arguments
 
-  abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? -> Cellular
+  abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? --baud_rates/List? -> Cellular
 
   create_logger -> log.Logger:
     level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
@@ -125,11 +125,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       driver_ = null
 
   open_driver -> Cellular:
-    uart_baud_rate := config_.get cellular.CONFIG_UART_BAUD_RATE
-        --if_absent=: Cellular.DEFAULT_BAUD_RATE
+    uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
+        --if_present=: it is List ? it : [it]
     uart_high_priority/bool? := config_.get cellular.CONFIG_UART_PRIORITY
         --if_present=: it == cellular.CONFIG_PRIORITY_HIGH
-        --if_absent=: null
 
     tx_  = pin config_ cellular.CONFIG_UART_TX
     rx_  = pin config_ cellular.CONFIG_UART_RX
@@ -140,7 +139,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     reset_ = pin config_ cellular.CONFIG_RESET
 
     port := uart.Port
-        --baud_rate=uart_baud_rate
+        --baud_rate=Cellular.DEFAULT_BAUD_RATE
         --high_priority=uart_high_priority
         --tx=tx_
         --rx=rx_
@@ -151,6 +150,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --port=port
         --power=power_
         --reset=reset_
+        --baud_rates=uart_baud_rates
 
     try:
       driver.wait_for_ready
