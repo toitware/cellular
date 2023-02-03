@@ -198,6 +198,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
         SQNSD.udp get_id_ port_ remote_address_
 
   write data/ByteArray from=0 to=data.size -> int:
+    if not remote_address_: throw "NOT_CONNECTED"
     if from != 0 or to != data.size: data = data[from..to]
     return send_ remote_address_ data
 
@@ -211,8 +212,6 @@ class UdpSocket extends Socket_ implements udp.Socket:
 
   send_ address data -> int:
     if data.size > mtu: throw "PAYLOAD_TO_LARGE"
-    if not remote_address_: throw "NOT_CONNECTED"
-    if address != remote_address_: throw "WRONG_ADDRESS"
     res := cellular_.at_.do: it.set "+SQNSSENDEXT" [get_id_, data.size] --data=data
     return data.size
 
