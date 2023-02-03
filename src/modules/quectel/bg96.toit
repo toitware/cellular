@@ -11,7 +11,7 @@ import .quectel
 import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
-import ...base.service show CellularServiceDefinition
+import ...base.service show CellularServiceProvider
 
 main:
   service := BG96Service
@@ -19,7 +19,7 @@ main:
 
 // --------------------------------------------------------------------------
 
-class BG96Service extends CellularServiceDefinition:
+class BG96Service extends CellularServiceProvider:
   constructor:
     super "quectel/bg96" --major=0 --minor=1 --patch=0
 

@@ -11,7 +11,7 @@ import .ublox
 import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
-import ...base.service show CellularServiceDefinition
+import ...base.service show CellularServiceProvider
 
 main:
   service := SaraR5Service
@@ -19,7 +19,7 @@ main:
 
 // --------------------------------------------------------------------------
 
-class SaraR5Service extends CellularServiceDefinition:
+class SaraR5Service extends CellularServiceProvider:
   constructor:
     super "ublox/sara_r5" --major=0 --minor=1 --patch=0
 

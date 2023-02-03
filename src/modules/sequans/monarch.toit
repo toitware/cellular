@@ -11,7 +11,7 @@ import .sequans
 import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
-import ...base.service show CellularServiceDefinition
+import ...base.service show CellularServiceProvider
 
 /**
 This is the driver and service for the Sequans Monarch module. The easiest
@@ -34,7 +34,7 @@ main:
 
 // --------------------------------------------------------------------------
 
-class MonarchService extends CellularServiceDefinition:
+class MonarchService extends CellularServiceProvider:
   constructor:
     super "sequans/monarch" --major=0 --minor=1 --patch=0
 

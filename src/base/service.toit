@@ -13,9 +13,10 @@ import encoding.tison
 import system.firmware
 import system.assets
 
+import system.services show ServiceSelector
 import system.api.network show NetworkService
 import system.api.cellular show CellularService
-import system.base.network show ProxyingNetworkServiceDefinition
+import system.base.network show ProxyingNetworkServiceProvider
 
 import .cellular
 
@@ -33,10 +34,12 @@ pin config/Map key/string -> gpio.Pin?:
   pin.set 0  // Drive to in-active.
   return pin
 
-abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinition:
-  // ... explain why these are here ...
-  static MAJOR /int ::= 0
-  static MINOR /int ::= 2
+abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
+  // TODO(kasper): Explain why this is here.
+  static SELECTOR ::= ServiceSelector
+      --uuid=CellularService.SELECTOR.uuid
+      --major=0
+      --minor=2
 
   // TODO(kasper): Let this be configurable.
   static SUSTAIN_FOR_DURATION_ ::= Duration --ms=100
@@ -61,7 +64,7 @@ abstract class CellularServiceDefinition extends ProxyingNetworkServiceDefinitio
     super "system/network/cellular/$name" --major=major --minor=minor --patch=patch
     // TODO(kasper): Provide the network service too and implement a default
     // way of establishing the connection.
-    provides CellularService.UUID MAJOR MINOR
+    provides SELECTOR --handler=this
 
   handle pid/int client/int index/int arguments/any -> any:
     if index == CellularService.CONNECT_INDEX:
