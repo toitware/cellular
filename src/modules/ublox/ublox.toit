@@ -522,20 +522,39 @@ abstract class UBloxCellular extends CellularBase:
     return false
 
   on_aborted_command session/at.Session command/at.Command -> none:
+    // Clear out the aborted command.
+    session.command_deadline_ = 0
+    session.command_ = null
+    // Flush out the CME ERROR: Command aborted response.
+    exception := null
+    iteration := 0
+    attempts ::= []
     critical_do --no-respect_deadline:
-      catch --trace: with_timeout --ms=2_000:
-        empty_ping := at.Command.raw "" --timeout=(Duration --ms=200)
-        5.repeat:
+      exception = catch --trace=(: it != DEADLINE_EXCEEDED_ERROR): with_timeout --ms=20_000:
+        empty_ping := at.Command.raw "" --timeout=(Duration --ms=5_000)
+        3.repeat:
+          iteration++
           // Send empty ping to flush out "+CME ERROR: Command aborted" errors.
-          session.send_ empty_ping
+          handled := false
+          start := Time.monotonic_us
+          result := session.send_ empty_ping
               --on_timeout=:
                 // Return an empty at.Result. We can't use null because send_ insists
                 // on returning a non-null at.Result.
+                attempts.add "-()"
+                handled = true
                 at.Result "" []
               --on_error=: | _ result/at.Result |
                 // If we got an aborted command result, we're done!
-                if result.code == "+CME ERROR: Command aborted": return
-          sleep --ms=100
+                handled = true
+                if result.code == "+CME ERROR: Command aborted":
+                  elapsed := Time.monotonic_us - start
+                  catch --trace: throw "SUCCESS: abort command after $iteration attempts in $(elapsed)us: $command - $attempts"
+                  return
+                attempts.add "-($result.code)"
+          if not handled:
+            attempts.add "+($result.code)"
+    catch --trace: throw "FAILED: abort command after $iteration attempts: $command ($exception) - $attempts"
 
   get_mno_ session/at.Session:
     result := session.read "+UMNOPROF"
