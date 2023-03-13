@@ -1,6 +1,6 @@
 // Copyright (C) 2021 Toitware ApS. All rights reserved.
 // Use of this source code is governed by an MIT-style license that can be
-// found in the lib/LICENSE file.
+// found in the LICENSE file.
 
 /**
 Implementation of the XMODEM-1K file transfer protocol.

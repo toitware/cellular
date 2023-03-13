@@ -1,0 +1,7 @@
+prefixes:
+  http: pkg-http
+packages:
+  pkg-http:
+    url: github.com/toitlang/pkg-http
+    version: 2.0.1
+    hash: 1d0f328e4b510b00f4cf1e0e1bb5835806cf2fb5
