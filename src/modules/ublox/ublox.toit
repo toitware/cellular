@@ -9,6 +9,8 @@ import log
 import monitor
 import uart
 
+import system.base.network show CloseableNetwork
+
 import ...base.at as at
 import ...base.base
 import ...base.cellular
@@ -252,7 +254,6 @@ class UdpSocket extends Socket_ implements udp.Socket:
   broadcast -> bool: return false
 
   broadcast= value/bool: throw "BROADCAST_UNSUPPORTED"
-
 
 /**
 Base driver for u-blox Cellular devices, communicating over CAT-NB1 and/or CAT-M1.
@@ -621,15 +622,11 @@ abstract class UBloxCellular extends CellularBase:
 class UBloxConstants implements Constants:
   RatCatM1 -> int?: return null
 
-class Interface_ implements net.Interface:
+class Interface_ extends CloseableNetwork implements net.Interface:
   cellular_/UBloxCellular
   tcp_connect_mutex_ ::= monitor.Mutex
 
   constructor .cellular_:
-
-  is_closed -> bool:
-    // TODO(kasper): Implement this?
-    return false
 
   address -> net.IpAddress:
     unreachable
@@ -675,7 +672,11 @@ class Interface_ implements net.Interface:
   tcp_listen port/int -> tcp.ServerSocket:
     throw "UNIMPLEMENTED"
 
-  close:
+  is_closed -> bool:
+    // TODO(kasper): Implement this?
+    return false
+
+  close_:
     // TODO(kasper): Implement this?
 
 class UDNSRN extends at.Command:

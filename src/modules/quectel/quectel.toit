@@ -9,6 +9,8 @@ import log
 import monitor
 import uart
 
+import system.base.network show CloseableNetwork
+
 import ...base.at as at
 import ...base.base
 import ...base.cellular
@@ -559,7 +561,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 class QuectelConstants implements Constants:
   RatCatM1 -> int: return 8
 
-class Interface_ implements net.Interface:
+class Interface_ extends CloseableNetwork implements net.Interface:
   static FREE_PORT_RANGE ::= 1 << 14
 
   cellular_/QuectelCellular
@@ -567,10 +569,6 @@ class Interface_ implements net.Interface:
   free_port_ := 0
 
   constructor .cellular_:
-
-  is_closed -> bool:
-    // TODO(kasper): Implement this?
-    return false
 
   resolve host/string -> List:
     // First try parsing it as an ip.
@@ -631,7 +629,12 @@ class Interface_ implements net.Interface:
   address -> net.IpAddress:
     unreachable
 
-  close:
+  is_closed -> bool:
+    // TODO(kasper): Implement this?
+    return false
+
+  close_:
+    // TODO(kasper): Implement this?
 
 class QIDNSGIP extends at.Command:
   static TIMEOUT ::= Duration --s=70

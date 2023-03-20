@@ -9,6 +9,8 @@ import log
 import monitor
 import uart
 
+import system.base.network show CloseableNetwork
+
 import ...base.at as at
 import ...base.base
 import ...base.cellular
@@ -450,7 +452,7 @@ abstract class SequansCellular extends CellularBase:
 class SequansConstants implements Constants:
   RatCatM1 -> int?: return null
 
-class Interface_ implements net.Interface:
+class Interface_ extends CloseableNetwork implements net.Interface:
   static FREE_PORT_RANGE ::= 1 << 14
 
   cellular_/SequansCellular
@@ -458,10 +460,6 @@ class Interface_ implements net.Interface:
   free_port_ := 0
 
   constructor .cellular_:
-
-  is_closed -> bool:
-    // TODO(kasper): Implement this?
-    return false
 
   address -> net.IpAddress:
     unreachable
@@ -509,8 +507,12 @@ class Interface_ implements net.Interface:
     throw
       ResourceExhaustedException "no more sockets available"
 
-  close:
-    // Do nothing so far.
+  is_closed -> bool:
+    // TODO(kasper): Implement this?
+    return false
+
+  close_:
+    // TODO(kasper): Implement this?
 
 class SQNDNSLKUP extends at.Command:
   static TIMEOUT ::= Duration --s=20

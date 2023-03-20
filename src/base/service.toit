@@ -10,10 +10,9 @@ import net
 import net.cellular
 
 import encoding.tison
-import system.firmware
 import system.assets
 
-import system.services show ServiceSelector
+import system.services show ServiceSelector ServiceProvider
 import system.api.network show NetworkService
 import system.api.cellular show CellularService
 import system.base.network show ProxyingNetworkServiceProvider
@@ -35,8 +34,15 @@ pin config/Map key/string -> gpio.Pin?:
   return pin
 
 abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
-  // TODO(kasper): Explain why this is here.
-  static SELECTOR ::= ServiceSelector
+  // We cellular service has been developed against known
+  // versions of the network and cellular APIs. We keep a
+  // copy of the versions here, so we will know if we the
+  // version numbers in the core libraries change.
+  static NETWORK_SELECTOR ::= ServiceSelector
+      --uuid=NetworkService.SELECTOR.uuid
+      --major=0
+      --minor=3
+  static CELLULAR_SELECTOR ::= ServiceSelector
       --uuid=CellularService.SELECTOR.uuid
       --major=0
       --minor=2
@@ -62,9 +68,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   constructor name/string --major/int --minor/int --patch/int=0:
     super "system/network/cellular/$name" --major=major --minor=minor --patch=patch
-    // TODO(kasper): Provide the network service too and implement a default
-    // way of establishing the connection.
-    provides SELECTOR --handler=this
+    provides NETWORK_SELECTOR
+        --handler=this
+        --priority=ServiceProvider.PRIORITY_UNPREFERRED
+        --tags=["cellular"]
+    provides CELLULAR_SELECTOR --handler=this
 
   handle pid/int client/int index/int arguments/any -> any:
     if index == CellularService.CONNECT_INDEX:
@@ -79,11 +87,14 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   connect client/int config/Map? -> List:
     if not config:
-      config = firmware.config["cellular"]
-      if not config:
-        config = {:}
-        assets.decode.get "cellular" --if_present=: | encoded |
-          catch --trace: config = tison.decode encoded
+      config = {:}
+      // TODO(kasper): It feels like the configurations present as assets
+      // should form the basis (pins, etc.) and then additional options
+      // provided by the client can give the rest as an overlay.
+      assets.decode.get "cellular" --if_present=: | encoded |
+        catch --trace: config = tison.decode encoded
+      // TODO(kasper): Should we mix in configuration properties from
+      // firmware.config?
     // TODO(kasper): This isn't a super elegant way of dealing with
     // the current configuration. Should we pass it through to $open_network
     // somehow instead?
