@@ -1,1 +1,3 @@
 name: cellular
+environment:
+  sdk: ^2.0.0-alpha.68
