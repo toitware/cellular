@@ -271,10 +271,7 @@ Base driver for Quectel Cellular devices, communicating over CAT-NB1 and/or CAT-
 */
 abstract class QuectelCellular extends CellularBase implements Gnss:
   tcp_connect_mutex_ ::= monitor.Mutex
-  logger_ ::= (log.default.with_name "driver").with_name "cellular"
-
   resolve_/monitor.Latch? := null
-
   gnss_users_ := 0
 
   /**
@@ -284,15 +281,17 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 
   constructor
       uart/uart.Port
-      --logger=log.default
+      --logger/log.Logger
       --uart_baud_rates/List
       --use_psm:
     at_session := configure_at_ uart logger
 
     super uart at_session
+      --logger=logger
       --constants=QuectelConstants
       --uart_baud_rates=uart_baud_rates
       --use_psm=use_psm
+
     at_session.register_urc "+QIOPEN":: | args |
       sockets_.get args[0]
         --if_present=: | socket |
@@ -416,7 +415,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
   support_gsm_ -> bool:
     return true
 
-  configure apn --bands=null --rats=null:
+  configure apn/string --bands=null --rats=null:
     at_.do: | session/at.Session |
       // Set connection arguments.
 
@@ -480,7 +479,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     // than once. Don't turn that into a problem.
     catch: session.register_urc "+QPSMTIMER" lambda
 
-  connect_psm:
+  connect_psm -> none:
     at_.do: | session/at.Session |
       set_up_psm_urc_handler_ session
     super

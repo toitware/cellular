@@ -276,7 +276,7 @@ abstract class UBloxCellular extends CellularBase:
 
   constructor
       uart/uart.Port
-      --logger=log.default
+      --logger/log.Logger
       --config/Map={:}
       --.cat_m1=false
       --.cat_nb1=false
@@ -289,6 +289,7 @@ abstract class UBloxCellular extends CellularBase:
     at_session := configure_at_ uart logger
 
     super uart at_session
+      --logger=logger
       --constants=UBloxConstants
       --uart_baud_rates=uart_baud_rates
       --use_psm=use_psm
@@ -441,7 +442,7 @@ abstract class UBloxCellular extends CellularBase:
     if mno >= 100 and current_mno == MNO_GLOBAL: return false
     return current_mno != mno
 
-  configure apn --mno/int=100 --bands=null --rats=null:
+  configure apn/string --mno/int=100 --bands=null --rats=null:
     at_.do: | session/at.Session |
       while true:
         should_reboot/bool := false

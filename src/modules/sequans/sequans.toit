@@ -151,7 +151,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
         it.send command
         elapsed ::= Time.monotonic_us - start
         if elapsed > at.Command.DEFAULT_TIMEOUT.in_us:
-          cellular_.logger_.warn "slow tcp write" --tags={"time": "$(elapsed / 1_000) ms"}
+          cellular_.logger.warn "slow tcp write" --tags={"time": "$(elapsed / 1_000) ms"}
       // Give processing time to other tasks, to avoid busy write-loop that starves readings.
       yield
       return data.size
@@ -267,13 +267,14 @@ abstract class SequansCellular extends CellularBase:
 
   constructor
       uart/uart.Port
-      --logger=log.default
+      --logger/log.Logger
       --uart_baud_rates/List
       --use_psm:
     at_session := configure_at_ uart logger
 
     super uart at_session
-      --constants = SequansConstants
+      --logger=logger
+      --constants=SequansConstants
       --uart_baud_rates=uart_baud_rates
       --use_psm=use_psm
 
@@ -373,19 +374,18 @@ abstract class SequansCellular extends CellularBase:
       finally:
         session.unregister_urc "+CEREG"
 
-  connect --operator/Operator?=null -> bool:
+  connect --operator/Operator?=null -> none:
     if operator:
       ps_detach_
       // Using the RAT seems to give problems, so remove it.
       operator = Operator operator.op
-
-    return super --operator=operator
+    super --operator=operator
 
   scan_for_operators -> List:
     ps_detach_
     return super
 
-  configure apn --bands=null --rats=null:
+  configure apn/string --bands=null --rats=null:
     at_.do: | session/at.Session |
       // Set connection arguments.
 

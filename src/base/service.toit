@@ -79,11 +79,12 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       return connect client arguments
     return super pid client index arguments
 
-  abstract create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? --baud_rates/List? -> Cellular
-
-  create_logger -> log.Logger:
-    level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
-    return (level is int) ? (log.Logger level log.DefaultTarget) : log.default
+  abstract create_driver -> Cellular
+      --logger/log.Logger
+      --port/uart.Port
+      --power/gpio.Pin?
+      --reset/gpio.Pin?
+      --baud_rates/List?
 
   connect client/int config/Map? -> List:
     if not config:
@@ -108,23 +109,36 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     return NetworkService.PROXY_RESOLVE | NetworkService.PROXY_UDP | NetworkService.PROXY_TCP
 
   open_network -> net.Interface:
-    driver ::= open_driver
+    level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
+    level = level or log.INFO_LEVEL
+    logger := log.Logger level log.DefaultTarget --name="cellular"
+
+    driver ::= open_driver logger
+    is_configured := false
     try:
       with_timeout --ms=30_000:
-        driver.configure apn_ --bands=bands_ --rats=rats_
+        apn := apn_ or ""
+        logger.info "configuring apn" --tags={"apn": apn}
+        driver.configure apn --bands=bands_ --rats=rats_
+        is_configured = true
       with_timeout --ms=120_000:
+        logger.info "enabling radio"
         driver.enable_radio
+        logger.info "connecting"
         driver.connect
       driver_ = driver
+      logger.info "connected"
       return driver.network_interface
-    finally: | is_exception _ |
+    finally: | is_exception exception |
       if is_exception:
-        // TODO(kasper): It looks like this should be done after configure
-        // has succeeded but not before.
-        driver.close
+        logger.warn "closing" --tags={"error": exception.value}
+        if is_configured: driver.close
+        close_pins_
 
   close_network network/net.Interface -> none:
+    logger := driver_.logger
     try:
+      logger.info "closing"
       driver_.close
       if rts_:
         rts_.configure --output
@@ -134,8 +148,9 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       close_pins_
       apn_ = bands_ = rats_ = null
       driver_ = null
+      logger.info "closed"
 
-  open_driver -> Cellular:
+  open_driver logger/log.Logger -> Cellular:
     uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
         --if_present=: it is List ? it : [it]
     uart_high_priority/bool := config_.get cellular.CONFIG_UART_PRIORITY
@@ -159,6 +174,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --rts=rts_
 
     driver := create_driver
+        --logger=logger
         --port=port
         --power=power_
         --reset=reset_
@@ -170,9 +186,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     finally: | is_exception _ |
       if is_exception:
         driver.recover_modem
-        // TODO(kasper): There probably isn't a need to do this before
-        // configure has succeeded.
-        driver.close
         close_pins_
 
   close_pins_ -> none:

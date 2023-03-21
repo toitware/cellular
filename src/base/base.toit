@@ -21,8 +21,7 @@ Major things that are not implemented in the base is:
 */
 abstract class CellularBase implements Cellular:
   sockets_/Map ::= {:}
-  logger_ ::= (log.default.with_name "driver").with_name "cellular"
-
+  logger/log.Logger
   at_session_/at.Session
   at_/at.Locker
 
@@ -42,7 +41,7 @@ abstract class CellularBase implements Cellular:
   constructor
       .uart_
       .at_session_
-      --logger=log.default
+      --.logger
       --.uart_baud_rates
       --.constants
       --.use_psm:
@@ -50,7 +49,7 @@ abstract class CellularBase implements Cellular:
 
   abstract iccid -> string
 
-  abstract configure apn --bands/List?=null --rats=null
+  abstract configure apn/string --bands/List?=null --rats=null
 
   abstract close -> none
 
@@ -95,21 +94,14 @@ abstract class CellularBase implements Cellular:
           Operator o[3] --rat=rat
     return result
 
-  connect_psm:
+  connect_psm -> none:
     at_.do: | session/at.Session |
       wait_for_connected_ session null
 
-  connect --operator/Operator?=null -> bool:
-    is_connected := false
-
+  connect --operator/Operator?=null -> none:
     at_.do: | session/at.Session |
-      if not operator:
-        send_abortable_ session COPS.automatic
-
-      // Set operator after enabling the radio.
-      is_connected = wait_for_connected_ session operator
-
-    return is_connected
+      if not operator: send_abortable_ session COPS.automatic
+      wait_for_connected_ session operator
 
   // TODO(Lau): Support the other operator formats than numeric.
   get_connected_operator -> Operator?:
@@ -137,7 +129,7 @@ abstract class CellularBase implements Cellular:
       quality := values[1]
       quality = (quality == 99) ? null : quality / 7.0
       return SignalQuality --power=power --quality=quality
-    logger_.info "failed to read signal strength" --tags={"error": "$e"}
+    logger.warn "failed to read signal strength" --tags={"error": "$e"}
     return null
 
   wait_for_ready:
@@ -255,9 +247,8 @@ abstract class CellularBase implements Cellular:
       if state == 80: connected.set "connection lost"
       return false
 
-  wait_for_connected_ session/at.Session operator/Operator? -> bool:
+  wait_for_connected_ session/at.Session operator/Operator? -> none:
     connected := monitor.Latch
-
     failed_to_connect = true
     is_lte_connection_ = false
 
@@ -283,16 +274,13 @@ abstract class CellularBase implements Cellular:
           use_psm = false
 
       result := wait_for_urc_ --session=session: connected.get
-      if result is string:
-        logger_.debug "connection failed" --tags={"error": result}
-        return false
+      if result is string: throw result
     finally:
       session.unregister_urc "+CEREG"
       if support_gsm_: session.unregister_urc "+CGREG"
 
     on_connected_ session
     failed_to_connect = false
-    return true
 
   send_abortable_ session/at.Session command/at.Command -> at.Result:
     try:

@@ -2,6 +2,7 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
+import log
 import net
 
 import .at as at
@@ -12,10 +13,12 @@ RAT_NB_IOT ::= 2
 RAT_GSM ::= 3
 
 /**
-Base for Cellular drivers for embedding in the kernel.
+Cellular driver interface for
 */
 interface Cellular:
   static DEFAULT_BAUD_RATE/int ::= 115_200
+
+  logger -> log.Logger
 
   use_psm -> bool
   use_psm= value/bool -> none
@@ -37,17 +40,17 @@ interface Cellular:
 
   is_connected -> bool
 
-  configure apn --bands/List?=null --rats/List?=null
+  configure apn/string --bands/List?=null --rats/List?=null
 
   /**
   Connect to the service using the optional operator.
   */
-  connect --operator/Operator?=null -> bool
+  connect --operator/Operator?=null -> none
 
   /**
   Connect to the service after a PSM wakeup.
   */
-  connect_psm
+  connect_psm -> none
 
   /**
   Scan for operators.

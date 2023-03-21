@@ -23,9 +23,13 @@ class SaraR5Service extends CellularServiceProvider:
   constructor:
     super "ublox/sara_r5" --major=0 --minor=1 --patch=0
 
-  create_driver --port/uart.Port --power/gpio.Pin? --reset/gpio.Pin? --baud_rates/List? -> cellular.Cellular:
-    return SaraR5 port
-        --logger=create_logger
+  create_driver -> cellular.Cellular
+      --logger/log.Logger
+      --port/uart.Port
+      --power/gpio.Pin?
+      --reset/gpio.Pin?
+      --baud_rates/List?:
+    return SaraR5 port logger
         --pwr_on=power
         --reset_n=reset
         --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
@@ -40,14 +44,13 @@ class SaraR5 extends UBloxCellular:
   pwr_on/gpio.Pin?
   reset_n/gpio.Pin?
 
-  constructor uart/uart.Port
-      --logger=log.default
+  constructor port/uart.Port logger/log.Logger
       --.pwr_on=null
       --.reset_n=null
       --uart_baud_rates/List
       --is_always_online/bool:
     super
-      uart
+      port
       --logger=logger
       --config=CONFIG_
       --cat_m1

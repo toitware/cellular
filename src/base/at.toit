@@ -137,7 +137,7 @@ class Session:
 
   reader_/reader.BufferedReader
   writer_/writer.Writer
-  logger_/log.Logger?
+  logger_/log.Logger
 
   processor_/Processer_ ::= Processer_
   urc_handlers_/Map ::= {:}
@@ -156,7 +156,7 @@ class Session:
   error_/string? := null
 
   constructor r/reader.Reader w
-      --logger=log.default
+      --logger
       --.s3=CR
       --.data_marker='@'
       --.command_delay=DEFAULT_COMMAND_DELAY
@@ -346,7 +346,7 @@ class Session:
       task_.cancel
 
   write_command_ command/Command:
-    logger_.with_level log.INFO_LEVEL: it.info "-> $command"
+    logger_.with_level log.DEBUG_LEVEL: it.debug "-> $command"
     if command.type == Command.RAW_:
       writer_.write command.name
       if command.data: writer_.write s3_data_
@@ -361,10 +361,10 @@ class Session:
     delay_next_request_
     urc_handlers_.do: | prefix lambda |
       if urc.starts_with prefix:
-        logger_.with_level log.INFO_LEVEL: it.info "<- [URC] $urc $response"
+        logger_.with_level log.DEBUG_LEVEL: it.debug "<- [URC] $urc $response"
         lambda.call response
         return
-    logger_.with_level log.INFO_LEVEL: it.info "<- *ignored* [URC] $urc $response"
+    logger_.with_level log.DEBUG_LEVEL: it.debug "<- *ignored* [URC] $urc $response"
 
   is_terminating_ line/ByteArray:
     return ok_termination_.contains line or error_termination_.contains line
@@ -384,10 +384,10 @@ class Session:
             // Wait before sending data.
             if data_delay: sleep data_delay
             writer_.write data
-            logger_.with_level log.INFO_LEVEL: it.info "<- $(%c data_marker)"
-            logger_.with_level log.INFO_LEVEL: it.info "-> <$(data.size) bytes>"
+            logger_.with_level log.DEBUG_LEVEL: it.debug "<- $(%c data_marker)"
+            logger_.with_level log.DEBUG_LEVEL: it.debug "-> <$(data.size) bytes>"
             continue
-        logger_.with_level log.INFO_LEVEL: it.info "<- $(%c data_marker) *no data*"
+        logger_.with_level log.DEBUG_LEVEL: it.debug "<- $(%c data_marker) *no data*"
       else if c >= 32:
         if not command_:
           reader_.read_bytes_until s3
@@ -412,7 +412,7 @@ class Session:
     if is_terminating_ cmd_bytes:
       line := reader_.read_string line_end
       reader_.skip 1  // Skip s3.
-      logger_.with_level log.INFO_LEVEL: it.info "<- $line"
+      logger_.with_level log.DEBUG_LEVEL: it.debug "<- $line"
       complete_command_ line
       return
 
@@ -423,12 +423,12 @@ class Session:
 
     parsed := response_parsers_.get cmd
       --if_present=:
-        logger_.with_level log.INFO_LEVEL: it.info "<- $cmd: <custom>"
+        logger_.with_level log.DEBUG_LEVEL: it.debug "<- $cmd: <custom>"
         it.call reader_
       --if_absent=:
         bytes := reader_.read_bytes line_end - cmd_end
         reader_.skip 1  // Skip s3.
-        logger_.with_level log.INFO_LEVEL: it.info "<- $cmd: $bytes.to_string_non_throwing"
+        logger_.with_level log.DEBUG_LEVEL: it.debug "<- $cmd: $bytes.to_string_non_throwing"
         parse_response bytes
 
     if command_ and command_.name == cmd:
@@ -439,7 +439,7 @@ class Session:
   read_plain_:
     line := reader_.read_bytes_until s3
     if line.size == 0: return
-    logger_.with_level log.INFO_LEVEL: it.info "<- $line.to_string_non_throwing"
+    logger_.with_level log.DEBUG_LEVEL: it.debug "<- $line.to_string_non_throwing"
     if is_echo_ line: return
     if is_terminating_ line:
       complete_command_ line.to_string
