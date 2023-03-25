@@ -293,6 +293,8 @@ abstract class CellularBase implements Cellular:
     // Do nothing by default.
 
   abstract set_baud_rate_ session/at.Session baud_rate/int
+
+  abstract network_name -> string
   abstract network_interface -> net.Interface
 
   // Dummy implementations.

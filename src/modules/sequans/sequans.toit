@@ -447,7 +447,7 @@ abstract class SequansCellular extends CellularBase:
     // NOP for Sequans devices.
 
   network_interface -> net.Interface:
-    return Interface_ this
+    return Interface_ network_name this
 
 class SequansConstants implements Constants:
   RatCatM1 -> int?: return null
@@ -455,11 +455,12 @@ class SequansConstants implements Constants:
 class Interface_ extends CloseableNetwork implements net.Interface:
   static FREE_PORT_RANGE ::= 1 << 14
 
+  name/string
   cellular_/SequansCellular
   tcp_connect_mutex_ ::= monitor.Mutex
   free_port_ := 0
 
-  constructor .cellular_:
+  constructor .name .cellular_:
 
   address -> net.IpAddress:
     unreachable

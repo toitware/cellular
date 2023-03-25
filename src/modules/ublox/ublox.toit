@@ -606,7 +606,7 @@ abstract class UBloxCellular extends CellularBase:
     sleep --ms=100
 
   network_interface -> net.Interface:
-    return Interface_ this
+    return Interface_ network_name this
 
   test_tx_:
     // Test routine for entering test most and broadcasting 23dBm on channel 20
@@ -624,10 +624,11 @@ class UBloxConstants implements Constants:
   RatCatM1 -> int?: return null
 
 class Interface_ extends CloseableNetwork implements net.Interface:
+  name/string
   cellular_/UBloxCellular
   tcp_connect_mutex_ ::= monitor.Mutex
 
-  constructor .cellular_:
+  constructor .name .cellular_:
 
   address -> net.IpAddress:
     unreachable

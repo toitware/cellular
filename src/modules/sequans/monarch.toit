@@ -59,6 +59,9 @@ class Monarch extends SequansCellular:
         --uart_baud_rates=uart_baud_rates
         --use_psm=false
 
+  network_name -> string:
+    return "cellular:monarch"
+
   on_connected_ session/at.Session:
     // Do nothing.
 

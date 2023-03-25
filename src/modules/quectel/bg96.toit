@@ -48,6 +48,9 @@ class BG96 extends QuectelCellular:
         --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
         --use_psm=not is_always_online
 
+  network_name -> string:
+    return "cellular:bg96"
+
   on_connected_ session/at.Session:
     // Attach to network.
     session.set "+QICSGP" [cid_]

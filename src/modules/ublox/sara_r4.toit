@@ -65,6 +65,9 @@ class SaraR4 extends UBloxCellular:
       --async_socket_close
       --use_psm=not is_always_online
 
+  network_name -> string:
+    return "cellular:sara-r4"
+
   on_connected_ session/at.Session:
     // Do nothing.
 

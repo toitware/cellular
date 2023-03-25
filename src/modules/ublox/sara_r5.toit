@@ -57,7 +57,10 @@ class SaraR5 extends UBloxCellular:
       --uart_baud_rates=uart_baud_rates
       --use_psm=not is_always_online
 
-  list_equals a/List b/List -> bool:
+  network_name -> string:
+    return "cellular:sara-r5"
+
+  static list_equals_ a/List b/List -> bool:
     if a.size != b.size: return false
     a.size.repeat:
       if a[it] != b[it]: return false
@@ -65,7 +68,7 @@ class SaraR5 extends UBloxCellular:
 
   on_connected_ session/at.Session:
     upsd_status := session.set "+UPSND" [0, 8]
-    if list_equals upsd_status.last [0, 8, 1]:
+    if list_equals_ upsd_status.last [0, 8, 1]:
       // The PDP profile is already active. Trying to change it is
       // an illegal operation at this point.
       return
@@ -74,13 +77,13 @@ class SaraR5 extends UBloxCellular:
     changed := false
     upsd_map_cid_target := [0, 100, 1]
     upsd_map_cid := session.set "+UPSD" upsd_map_cid_target[0..2]
-    if not list_equals upsd_map_cid.last upsd_map_cid_target:
+    if not list_equals_ upsd_map_cid.last upsd_map_cid_target:
       session.set "+UPSD" upsd_map_cid_target
       changed = true
 
     upsd_protocol_target := [0, 0, 0]
     upsd_protocol := session.set "+UPSD" upsd_protocol_target[0..2]
-    if not list_equals upsd_protocol.last upsd_protocol_target:
+    if not list_equals_ upsd_protocol.last upsd_protocol_target:
       session.set "+UPSD" upsd_protocol_target
       changed = true
 

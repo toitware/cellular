@@ -485,7 +485,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     super
 
   network_interface -> net.Interface:
-    return Interface_ this
+    return Interface_ network_name this
 
   // Override disable_radio_, as the SIM cannot be accessed unless airplane mode is used.
   disable_radio_ session/at.Session:
@@ -563,11 +563,12 @@ class QuectelConstants implements Constants:
 class Interface_ extends CloseableNetwork implements net.Interface:
   static FREE_PORT_RANGE ::= 1 << 14
 
+  name/string
   cellular_/QuectelCellular
   tcp_connect_mutex_ ::= monitor.Mutex
   free_port_ := 0
 
-  constructor .cellular_:
+  constructor .name .cellular_:
 
   resolve host/string -> List:
     // First try parsing it as an ip.
