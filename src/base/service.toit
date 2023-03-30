@@ -72,12 +72,13 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --handler=this
         --priority=ServiceProvider.PRIORITY_UNPREFERRED
         --tags=["cellular"]
-    provides CELLULAR_SELECTOR --handler=this
+        --new
+    provides CELLULAR_SELECTOR --handler=this --new
 
-  handle pid/int client/int index/int arguments/any -> any:
+  handle index/int arguments/any --gid/int --client/int -> any:
     if index == CellularService.CONNECT_INDEX:
       return connect client arguments
-    return super pid client index arguments
+    return super index arguments --gid=gid --client=client
 
   abstract create_driver -> Cellular
       --logger/log.Logger
