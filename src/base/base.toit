@@ -9,6 +9,7 @@ import monitor
 
 import .at as at
 import .cellular
+import ..signal show SignalQuality
 
 REGISTRATION_DENIED_ERROR ::= "registration denied"
 
@@ -361,8 +362,3 @@ class COPS extends at.Command:
       return MAX_TIMEOUT
     else:
       return min MAX_TIMEOUT (Duration --us=(Task.current.deadline - Time.monotonic_us))
-
-class SignalQuality:
-  power/float?
-  quality/float?
-  constructor --.power --.quality:
