@@ -7,6 +7,7 @@ import net
 
 import .at as at
 import .location show GnssLocation
+import ..signal show SignalQuality
 
 RAT_LTE_M ::= 1
 RAT_NB_IOT ::= 2
@@ -67,6 +68,7 @@ interface Cellular:
   close_uart -> none
 
   signal_strength -> float?
+  signal_quality -> SignalQuality?
 
   wait_for_ready -> none
 

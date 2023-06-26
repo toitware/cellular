@@ -12,12 +12,13 @@ import net.cellular
 import encoding.tison
 import system.assets
 
-import system.services show ServiceSelector ServiceProvider
+import system.services show ServiceHandler ServiceSelector ServiceProvider
 import system.api.network show NetworkService
 import system.api.cellular show CellularService
 import system.base.network show ProxyingNetworkServiceProvider
 
 import .cellular
+import ..api.signal
 
 pin config/Map key/string -> gpio.Pin?:
   value := config.get key
@@ -73,6 +74,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --priority=ServiceProvider.PRIORITY_UNPREFERRED
         --tags=["cellular"]
     provides CELLULAR_SELECTOR --handler=this
+    provides SignalService.SELECTOR --handler=(SignalServiceHandler_ this)
 
   handle index/int arguments/any --gid/int --client/int -> any:
     if index == CellularService.CONNECT_INDEX:
@@ -210,3 +212,17 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
       // If we timed out, we're done.
       if e: return
+
+class SignalServiceHandler_ implements ServiceHandler SignalService:
+  provider/CellularServiceProvider
+  constructor .provider:
+
+  handle index/int arguments/any --gid/int --client/int -> any:
+    if index == SignalService.QUALITY_INDEX: return quality
+    unreachable
+
+  quality -> any:
+    driver := provider.driver_
+    if not driver: return null
+    result := driver.signal_quality
+    return result ? [ result.power, result.quality ] : null
