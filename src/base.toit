@@ -38,6 +38,7 @@ abstract class CellularBase implements Cellular:
   use_psm/bool := true
 
   is_lte_connection_ := false
+  pin_/string? := null
 
   constructor
       .uart_
@@ -55,6 +56,9 @@ abstract class CellularBase implements Cellular:
   abstract configure apn --bands/List?=null --rats=null
 
   abstract close -> none
+
+  pin= pin/string? -> none:
+    pin_ = pin
 
   close_uart -> none:
     uart_.close
@@ -216,8 +220,8 @@ abstract class CellularBase implements Cellular:
     session.action "E0"
     // Verbose errors.
     session.set "+CMEE" [2]
-    // TODO(anders): This is where we want to use an optional PIN:
-    //   session.set "+CPIN" ["1234"]
+    // Set the pin if we have one.
+    if pin_: session.set "+CPIN" [pin_]
 
     return true
 
