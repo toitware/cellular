@@ -229,8 +229,9 @@ abstract class CellularBase implements Cellular:
       catch --unwind=(: it == DEADLINE_EXCEEDED_ERROR):
         r := session.read "+CPIN"
         logger_.info "got result of reading CPIN" --tags={"result": r}
-        // Set the pin if we have one.
-        if pin_: session.set "+CPIN" [pin_]
+        // Set the pin if we have one and it is requested.
+        if pin_ and r.single.first == "SIM PIN":
+          session.set "+CPIN" [pin_]
         return
       sleep --ms=250
 
