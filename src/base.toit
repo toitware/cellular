@@ -220,8 +220,6 @@ abstract class CellularBase implements Cellular:
     session.action "E0"
     // Verbose errors.
     session.set "+CMEE" [2]
-    // Set the pin if we have one.
-    if pin_: session.set "+CPIN" [pin_]
 
     return true
 
@@ -230,6 +228,9 @@ abstract class CellularBase implements Cellular:
     40.repeat:
       catch --unwind=(: it == DEADLINE_EXCEEDED_ERROR):
         r := session.read "+CPIN"
+        logger_.info "got result of reading CPIN" --tags={"result": r}
+        // Set the pin if we have one.
+        if pin_: session.set "+CPIN" [pin_]
         return
       sleep --ms=250
 
