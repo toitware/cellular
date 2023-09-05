@@ -146,14 +146,21 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       // Update outgoing.
       return 0
 
-    e := catch:
-      socket_call: | session/at.Session |
+    cellular_.at_.do: | session/at.Session |
+      try:
         session.set "+USOWR" [get_id_, data.size] --data=data
-      // Give processing time to other tasks, to avoid busy write-loop that starves readings.
-      yield
-      return data.size
-    if e is UnavailableException: return 0
-    throw e
+      finally: | is_exception _ |
+        // If we get an exception while writing, we risk leaving the
+        // modem in an awful state. Close the session to force us to
+        // start over.
+        if is_exception:
+          session.close
+          // The modem may become unresponsive at this point, so we
+          // try to force it to power off.
+          cellular_.power_off
+    // Give processing time to other tasks, to avoid busy write-loop that starves readings.
+    yield
+    return data.size
 
   // Close the socket for write. The socket will still be able to read incoming data.
   close_write:
