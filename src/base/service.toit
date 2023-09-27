@@ -11,6 +11,7 @@ import net.cellular
 
 import encoding.tison
 import system.assets
+import system.containers
 
 import system.services show ServiceHandler ServiceSelector ServiceProvider
 import system.api.network show NetworkService
@@ -130,6 +131,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         driver.connect
       driver_ = driver
       logger.info "connected"
+      // Once the network is established, we change the state of the
+      // cellular container to indicate that it is now running in
+      // the foreground and needs to have its proxied networks closed
+      // correctly in order for the shutdown to be clean.
+      containers.notify-background-state-changed false
       return driver.network_interface
     finally: | is_exception exception |
       if is_exception:
@@ -150,7 +156,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       close_pins_
       apn_ = bands_ = rats_ = null
       driver_ = null
-      logger.info "closed"
+      critical_do:
+        logger.info "closed"
+        // After closing the network, we change the state of the cellular
+        // container to indicate that it is now running in the background.
+        containers.notify-background-state-changed true
 
   open_driver logger/log.Logger -> Cellular:
     uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
