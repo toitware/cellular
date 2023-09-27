@@ -70,6 +70,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   constructor name/string --major/int --minor/int --patch/int=0:
     super "system/network/cellular/$name" --major=major --minor=minor --patch=patch
+    // The network starts closed, so we let the state of the cellular
+    // container indicate that it is running in the background until
+    // the network is opened.
+    containers.notify-background-state-changed true
     provides NETWORK_SELECTOR
         --handler=this
         --priority=ServiceProvider.PRIORITY_UNPREFERRED
