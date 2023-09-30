@@ -81,6 +81,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --tags=["cellular"]
     provides CELLULAR_SELECTOR --handler=this
     provides SignalService.SELECTOR --handler=(SignalServiceHandler_ this)
+    provides HardwareService.SELECTOR --handler=(HardwareServiceHandler_ this)
 
   handle index/int arguments/any --gid/int --client/int -> any:
     if index == CellularService.CONNECT_INDEX:
@@ -242,7 +243,7 @@ class SignalServiceHandler_ implements ServiceHandler SignalService:
     result := driver.signal_quality
     return result ? [ result.power, result.quality ] : null
 
-class HardwareStateServiceHandler_ implements ServiceHandler HardwareService:
+class HardwareServiceHandler_ implements ServiceHandler HardwareService:
   provider/CellularServiceProvider
   constructor .provider:
 
