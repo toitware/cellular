@@ -20,6 +20,7 @@ import system.base.network show ProxyingNetworkServiceProvider
 
 import .cellular
 import ..api.signal
+import ..api.hardware
 
 pin config/Map key/string -> gpio.Pin?:
   value := config.get key
@@ -80,6 +81,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --tags=["cellular"]
     provides CELLULAR_SELECTOR --handler=this
     provides SignalService.SELECTOR --handler=(SignalServiceHandler_ this)
+    provides HardwareService.SELECTOR --handler=(HardwareServiceHandler_ this)
 
   handle index/int arguments/any --gid/int --client/int -> any:
     if index == CellularService.CONNECT_INDEX:
@@ -240,3 +242,28 @@ class SignalServiceHandler_ implements ServiceHandler SignalService:
     if not driver: return null
     result := driver.signal_quality
     return result ? [ result.power, result.quality ] : null
+
+class HardwareServiceHandler_ implements ServiceHandler HardwareService:
+  provider/CellularServiceProvider
+  constructor .provider:
+
+  handle index/int arguments/any --gid/int --client/int -> any:
+    if index == HardwareService.ICCID_INDEX: return iccid
+    if index == HardwareService.MODEL_INDEX: return model
+    if index == HardwareService.VERSION_INDEX: return version
+    unreachable
+
+  iccid -> string?:
+    driver := provider.driver_
+    if not driver: return null
+    return driver.iccid
+
+  model -> string?:
+    driver := provider.driver_
+    if not driver: return null
+    return driver.model
+
+  version -> string?:
+    driver := provider.driver_
+    if not driver: return null
+    return driver.version
