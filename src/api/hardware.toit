@@ -18,7 +18,7 @@ interface HardwareService:
   static MODEL_INDEX ::= 1
 
   version -> string?
-  static VERSION_INDEX ::= 1
+  static VERSION_INDEX ::= 2
 
 class HardwareServiceClient extends services.ServiceClient implements HardwareService:
   static SELECTOR ::= HardwareService.SELECTOR
