@@ -26,6 +26,10 @@ class BG96Service extends CellularServiceProvider:
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
+      --rx/gpio.Pin?
+      --tx/gpio.Pin?
+      --rts/gpio.Pin?
+      --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud_rates/List?:

@@ -26,10 +26,18 @@ class SaraR5Service extends CellularServiceProvider:
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
+      --rx/gpio.Pin?
+      --tx/gpio.Pin?
+      --rts/gpio.Pin?
+      --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud_rates/List?:
     return SaraR5 port logger
+        --rx=rx
+        --tx=tx
+        --rts=rts
+        --cts=cts
         --pwr_on=power
         --reset_n=reset
         --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
@@ -41,10 +49,18 @@ Driver for Sara-R5, GSM communicating over NB-IoT & M1.
 class SaraR5 extends UBloxCellular:
   static CONFIG_ ::= {:}
 
+  rx/gpio.Pin?
+  tx/gpio.Pin?
+  rts/gpio.Pin?
+  cts/gpio.Pin?
   pwr_on/gpio.Pin?
   reset_n/gpio.Pin?
 
   constructor port/uart.Port logger/log.Logger
+      --.rx=null
+      --.tx=null
+      --.rts=null
+      --.cts=null
       --.pwr_on=null
       --.reset_n=null
       --uart_baud_rates/List
@@ -132,6 +148,26 @@ class SaraR5 extends UBloxCellular:
   // Prefer reset over power_off (100ms vs ~25s).
   recover_modem:
     reset
+  
+  is_powered_off -> bool?:
+    if rx == null: return null
+
+    // On SARA-R5, the RXD pin (modem's uart output) is a push-pull pin which is idle high and active low.
+    // When the modem is powered up, this pin will be connected to the internal 1.8V rail, which is turned off during power down.
+    // Therefore, by momentarily configuring the pin with a pull-down on the host microcontroller, we can assess the modem's state
+    // by checking this pin - without waking the modem up again. 
+    // If the modem is powered up, RX will be high, and if it's powered down, it will be low (ensured by the pull-down).
+    rx.configure --input --pull-down
+
+    // Run multiple checks of the pin state to ensure that it's not flickering
+    all_low := true
+    for i:=0; i<10; i++:
+      if (rx.get == 1): all_low = false
+
+    // Reconfigure the RX pin as normal input
+    rx.configure --input
+    return all_low
+  
 
 class UPSDA extends at.Command:
   // UPSDA times out after 180s, but since it can be aborted, any timeout can be used.

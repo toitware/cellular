@@ -89,6 +89,8 @@ interface Cellular:
 
   on_aborted_command session/at.Session command/at.Command -> none
 
+  is_powered_off -> bool?
+
 class Operator:
   op/string
   rat/int?
