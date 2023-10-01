@@ -91,6 +91,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   abstract create_driver -> Cellular
       --logger/log.Logger
       --port/uart.Port
+      --rx/gpio.Pin?
+      --tx/gpio.Pin?
+      --rts/gpio.Pin?
+      --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud_rates/List?
@@ -158,6 +162,18 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         rts_.configure --output
         rts_.set 0
       wait_for_quiescent_ rx_
+
+      // driver_.close sends AT+CPWROFF. If the session wasn't active, this can fail 
+      // and therefore we probe it's power state and force it to power down if needed.
+      // The routine is not implemented for all modems, in which case is_power_off will return null.
+      // Therefore, we explicitly check for false. 
+      is_powered_off := driver_.is_powered_off
+      if is_powered_off == false:
+        logger.info "power off not complete, forcing power down"
+        driver_.power_off
+      else if is_powered_off == null: logger.info "cannot determine power state, assuming it's correctly powered down"
+      else: logger.info "module is correctly powered off"
+
     finally:
       close_pins_
       apn_ = bands_ = rats_ = null
@@ -194,6 +210,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     driver := create_driver
         --logger=logger
         --port=port
+        --rx=rx_
+        --tx=tx_
+        --rts=rts_
+        --cts=cts_
         --power=power_
         --reset=reset_
         --baud_rates=uart_baud_rates
