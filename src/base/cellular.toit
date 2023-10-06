@@ -7,7 +7,7 @@ import net
 
 import .at as at
 import .location show GnssLocation
-import ..signal show SignalQuality
+import ..state show SignalQuality
 
 RAT_LTE_M ::= 1
 RAT_NB_IOT ::= 2
