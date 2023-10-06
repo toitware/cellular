@@ -34,5 +34,4 @@ class HardwareServiceClient extends services.ServiceClient implements HardwareSe
     return result ? result : null
 
   version -> string?:
-    result := invoke_ HardwareService.VERSION_INDEX null
-    return result ? result : null
+    return invoke_ HardwareService.VERSION_INDEX null
