@@ -2,10 +2,20 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-import .api.hardware
+import .api.state
 
-service_/HardwareServiceClient? ::= (HardwareServiceClient).open
+service_/CellularStateServiceClient? ::= (CellularStateServiceClient).open
     --if_absent=: null
+
+class SignalQuality:
+  power/float?
+  quality/float?
+  constructor --.power --.quality:
+
+quality -> SignalQuality?:
+  service := service_
+  if not service: throw "cellular unavailable"
+  return service.quality
 
 iccid -> string?:
   service := service_
