@@ -152,19 +152,24 @@ class SaraR5 extends UBloxCellular:
   is_powered_off -> bool?:
     if rx == null: return null
 
-    // On SARA-R5, the RXD pin (modem's uart output) is a push-pull pin which is idle high and active low.
-    // When the modem is powered up, this pin will be connected to the internal 1.8V rail, which is turned off during power down.
-    // Therefore, by momentarily configuring the pin with a pull-down on the host microcontroller, we can assess the modem's state
-    // by checking this pin - without waking the modem up again. 
-    // If the modem is powered up, RX will be high, and if it's powered down, it will be low (ensured by the pull-down).
+    // On SARA-R5, the RXD pin (modem's uart output) is a push-pull
+    // pin which is idle high and active low. When the modem is
+    // powered up, this pin will be connected to the internal 1.8V
+    // rail, which is turned off during power down. Therefore, by
+    // momentarily configuring the pin with a pull-down on the host
+    // microcontroller, we can assess the modem's state by checking
+    // this pin - without waking the modem up again. If the modem is
+    // powered up, RX will be high, and if it's powered down, it will
+    // be low (ensured by the pull-down).
+
     rx.configure --input --pull-down
 
-    // Run multiple checks of the pin state to ensure that it's not flickering
+    // Run multiple checks of the pin state to ensure that it's not flickering.
     all_low := true
-    for i:=0; i<10; i++:
-      if (rx.get == 1): all_low = false
+    8.repeat:
+      if all_low and rx.get == 1: all_low = false
 
-    // Reconfigure the RX pin as normal input
+    // Reconfigure the RX pin as normal input.
     rx.configure --input
     return all_low
   
