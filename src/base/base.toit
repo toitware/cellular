@@ -9,7 +9,7 @@ import monitor
 
 import .at as at
 import .cellular
-import ..signal show SignalQuality
+import ..state show SignalQuality
 
 REGISTRATION_DENIED_ERROR ::= "registration denied"
 
