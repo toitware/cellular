@@ -164,7 +164,7 @@ class SaraR5 extends UBloxCellular:
     for i:=0; i<10; i++:
       if (rx.get == 1): all_low = false
 
-    // Reconfigure the RX pin as normal input
+    // Reconfigure the RX pin as normal input.
     rx.configure --input
     return all_low
   
