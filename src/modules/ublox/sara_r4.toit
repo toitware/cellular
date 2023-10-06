@@ -26,6 +26,10 @@ class SaraR4Service extends CellularServiceProvider:
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
+      --rx/gpio.Pin?
+      --tx/gpio.Pin?
+      --rts/gpio.Pin?
+      --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud_rates/List?:
@@ -46,10 +50,18 @@ class SaraR4 extends UBloxCellular:
     "+USOCLCFG": [0],
   }
 
+  rx/gpio.Pin?
+  tx/gpio.Pin?
+  rts/gpio.Pin?
+  cts/gpio.Pin?
   pwr_on/gpio.Pin?
   reset_n/gpio.Pin?
 
   constructor port/uart.Port logger/log.Logger
+      --.rx=null
+      --.tx=null
+      --.rts=null
+      --.cts=null
       --.pwr_on=null
       --.reset_n=null
       --uart_baud_rates/List
