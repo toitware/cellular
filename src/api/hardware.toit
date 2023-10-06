@@ -27,8 +27,7 @@ class HardwareServiceClient extends services.ServiceClient implements HardwareSe
     super selector
 
   iccid -> string?:
-    result := invoke_ HardwareService.ICCID_INDEX null
-    return result ? result : null
+    return invoke_ HardwareService.ICCID_INDEX null
 
   model -> string?:
     result := invoke_ HardwareService.MODEL_INDEX null
