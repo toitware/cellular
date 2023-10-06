@@ -159,7 +159,7 @@ class SaraR5 extends UBloxCellular:
     // If the modem is powered up, RX will be high, and if it's powered down, it will be low (ensured by the pull-down).
     rx.configure --input --pull-down
 
-    // Run multiple checks of the pin state to ensure that it's not flickering
+    // Run multiple checks of the pin state to ensure that it's not flickering.
     all_low := true
     for i:=0; i<10; i++:
       if (rx.get == 1): all_low = false
