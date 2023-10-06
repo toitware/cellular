@@ -169,8 +169,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       if is_powered_off == false:
         logger.info "power off not complete, forcing power down"
         driver_.power_off
-      else if is_powered_off == null: logger.info "cannot determine power state, assuming it's correctly powered down"
-      else: logger.info "module is correctly powered off"
+      else if is_powered_off == null: 
+        logger.info "cannot determine power state, assuming it's correctly powered down"
+      else: 
+        logger.info "module is correctly powered off"
 
     finally:
       close_pins_
