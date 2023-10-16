@@ -161,17 +161,18 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         rts_.set 0
       wait_for_quiescent_ rx_
 
-      // driver_.close sends AT+CPWROFF. If the session wasn't active, this can fail 
-      // and therefore we probe it's power state and force it to power down if needed.
-      // The routine is not implemented for all modems, in which case is_power_off will return null.
-      // Therefore, we explicitly check for false. 
+      // The call to driver_.close sends AT+CPWROFF. If the session wasn't
+      // active, this can fail and therefore we probe its power state and
+      // force it to power down if needed. The routine is not implemented
+      // for all modems, in which case is_power_off will return null.
+      // Therefore, we explicitly check for false.
       is_powered_off := driver_.is_powered_off
       if is_powered_off == false:
         logger.info "power off not complete, forcing power down"
         driver_.power_off
-      else if is_powered_off == null: 
+      else if is_powered_off == null:
         logger.info "cannot determine power state, assuming it's correctly powered down"
-      else: 
+      else:
         logger.info "module is correctly powered off"
 
     finally:
@@ -219,7 +220,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --baud_rates=uart_baud_rates
 
     try:
-      driver.wait_for_ready
+      with_timeout --ms=20_000: driver.wait_for_ready
       return driver
     finally: | is_exception _ |
       if is_exception:
