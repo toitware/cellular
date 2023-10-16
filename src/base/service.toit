@@ -126,6 +126,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
     driver ::= open_driver logger
     is_configured := false
+    is_radio_enabled := false
     try:
       with_timeout --ms=30_000:
         apn := apn_ or ""
@@ -135,6 +136,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       with_timeout --ms=120_000:
         logger.info "enabling radio"
         driver.enable_radio
+        is_radio_enabled = true
         logger.info "connecting"
         driver.connect
       driver_ = driver
@@ -148,7 +150,12 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     finally: | is_exception exception |
       if is_exception:
         logger.warn "closing" --tags={"error": exception.value}
-        if is_configured: driver.close
+        if is_radio_enabled:
+          // TODO(kasper): We should probably only do this after e.g. 10 failed attempts.
+          catch: with_timeout --ms=10_000: driver.detach
+          catch: with_timeout --ms=5_000: driver.disable_radio
+        if is_configured:
+          driver.close
         close_pins_
 
   close_network network/net.Interface -> none:
