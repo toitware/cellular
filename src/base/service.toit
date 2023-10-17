@@ -151,11 +151,15 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       if is_exception:
         logger.warn "closing" --tags={"error": exception.value}
         if is_radio_enabled:
-          // TODO(kasper): We should probably only do this after e.g. 10 failed attempts.
+          // TODO(kasper): We should probably only detach after e.g. 10
+          // failed attempts.
           catch: with_timeout --ms=10_000: driver.detach
           catch: with_timeout --ms=5_000: driver.disable_radio
         if is_configured:
-          driver.close
+          // The driver may try to communicate with the module as
+          // part of closing down, so we need to be careful and
+          // not wait forever for this.
+          catch: with_timeout --ms=20_000: driver.close
         close_pins_
 
   close_network network/net.Interface -> none:
