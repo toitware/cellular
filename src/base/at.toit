@@ -390,7 +390,14 @@ class Session:
         logger_.with_level log.DEBUG_LEVEL: it.debug "<- $(%c data_marker) *no data*"
       else if c >= 32:
         if not command_:
-          reader_.read_bytes_until s3
+          // Read bytes until the defined s3 character and ensure that
+          // the buffer size does not accumulate over time to prevent
+          // memory exhaustion. TODO: A BufferedReader.skip-until would 
+          // be useful here.
+          while true:
+            discard := reader_.byte 0
+            reader_.skip 1
+            if discard == s3: break
         else:
           read_plain_
       else:
