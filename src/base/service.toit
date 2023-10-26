@@ -283,7 +283,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         // bump the number of attempts to get close to a reset.
         if attempts_until_reset > 1:
           attempts_ += attempts_until_reset - 1
-          bucket_[ATTEMPTS_KEY] = attempts_
+          critical_do: bucket_[ATTEMPTS_KEY] = attempts_
 
   close_pins_ -> none:
     if tx_: tx_.close
