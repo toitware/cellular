@@ -17,9 +17,16 @@ import system.services show ServiceHandler ServiceSelector ServiceProvider
 import system.api.network show NetworkService
 import system.api.cellular show CellularService
 import system.base.network show ProxyingNetworkServiceProvider
+import system.storage
 
 import .cellular
 import ..api.state
+
+CELLULAR_FAILS_BETWEEN_RESETS /int ::= 8
+
+CELLULAR_RESET_NONE      /int ::= 0
+CELLULAR_RESET_SOFT      /int ::= 1
+CELLULAR_RESET_POWER_OFF /int ::= 2
 
 pin config/Map key/string -> gpio.Pin?:
   value := config.get key
@@ -63,12 +70,20 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   cts_/gpio.Pin? := null
   rts_/gpio.Pin? := null
 
-  power_/gpio.Pin? := null
-  reset_/gpio.Pin? := null
+  power_pin_/gpio.Pin? := null
+  reset_pin_/gpio.Pin? := null
 
   driver_/Cellular? := null
 
+  static ATTEMPTS_KEY ::= "attempts"
+  bucket_/storage.Bucket ::= storage.Bucket.open --flash "toitware.com/cellular"
+  attempts_/int := ?
+  reset_/int := CELLULAR_RESET_NONE
+
   constructor name/string --major/int --minor/int --patch/int=0:
+    attempts/int? := null
+    catch: attempts = bucket_.get ATTEMPTS_KEY
+    attempts_ = attempts or 0
     super "system/network/cellular/$name" --major=major --minor=minor --patch=patch
     // The network starts closed, so we let the state of the cellular
     // container indicate that it is running in the background until
@@ -124,7 +139,26 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     level = level or log.INFO_LEVEL
     logger := log.Logger level log.DefaultTarget --name="cellular"
 
-    driver ::= open_driver logger
+    reset_ = CELLULAR_RESET_NONE
+    attempts := ++attempts_
+    bucket_[ATTEMPTS_KEY] = attempts
+    attempts_since_reset ::= attempts % CELLULAR_FAILS_BETWEEN_RESETS
+    attempts_until_reset ::= attempts_since_reset > 0
+        ? (CELLULAR_FAILS_BETWEEN_RESETS - attempts_since_reset)
+        : 0
+
+    if attempts_until_reset == 0:
+      power_off ::= attempts % (CELLULAR_FAILS_BETWEEN_RESETS * 2) == 0
+      logger.info "forced reset" --tags={
+        "attempts": attempts,
+        "kind": power_off ? "power-off" : "soft"
+      }
+      reset_ = power_off ? CELLULAR_RESET_POWER_OFF : CELLULAR_RESET_SOFT
+      if attempts >= 65536:
+        attempts_ = attempts = 0
+        bucket_[ATTEMPTS_KEY] = attempts
+
+    driver ::= open_driver logger attempts_until_reset
     is_configured := false
     is_radio_enabled := false
     try:
@@ -196,7 +230,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         // container to indicate that it is now running in the background.
         containers.notify-background-state-changed true
 
-  open_driver logger/log.Logger -> Cellular:
+  open_driver logger/log.Logger attempts_until_reset/int -> Cellular:
     uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
         --if_present=: it is List ? it : [it]
     uart_high_priority/bool := config_.get cellular.CONFIG_UART_PRIORITY
@@ -208,8 +242,8 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     cts_ = pin config_ cellular.CONFIG_UART_CTS
     rts_ = pin config_ cellular.CONFIG_UART_RTS
 
-    power_ = pin config_ cellular.CONFIG_POWER
-    reset_ = pin config_ cellular.CONFIG_RESET
+    power_pin_ = pin config_ cellular.CONFIG_POWER
+    reset_pin_ = pin config_ cellular.CONFIG_RESET
 
     port := uart.Port
         --baud_rate=Cellular.DEFAULT_BAUD_RATE
@@ -226,26 +260,39 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --tx=tx_
         --rts=rts_
         --cts=cts_
-        --power=power_
-        --reset=reset_
+        --power=power_pin_
+        --reset=reset_pin_
         --baud_rates=uart_baud_rates
 
     try:
+      if reset_ == CELLULAR_RESET_SOFT:
+        driver.reset
+        reset_ = CELLULAR_RESET_NONE
+        sleep --ms=1_000
+      else if reset_ == CELLULAR_RESET_POWER_OFF:
+        driver.power_off
+        reset_ = CELLULAR_RESET_NONE
+        sleep --ms=1_000
       with_timeout --ms=20_000: driver.wait_for_ready
       return driver
     finally: | is_exception _ |
       if is_exception:
         driver.recover_modem
         close_pins_
+        // Turning the cellular modem on failed, so we artificially
+        // bump the number of attempts to get close to a reset.
+        if attempts_until_reset > 1:
+          attempts_ += attempts_until_reset - 1
+          bucket_[ATTEMPTS_KEY] = attempts_
 
   close_pins_ -> none:
     if tx_: tx_.close
     if rx_: rx_.close
     if cts_: cts_.close
     if rts_: rts_.close
-    if power_: power_.close
-    if reset_: reset_.close
-    tx_ = rx_ = cts_ = rts_ = power_ = reset_ = null
+    if power_pin_: power_pin_.close
+    if reset_pin_: reset_pin_.close
+    tx_ = rx_ = cts_ = rts_ = power_pin_ = reset_pin_ = null
 
     // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait_for_quiescent_ pin/gpio.Pin:
