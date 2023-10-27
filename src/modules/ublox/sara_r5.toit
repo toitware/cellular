@@ -145,10 +145,6 @@ class SaraR5 extends UBloxCellular:
       reset_n.set 0
       sleep --ms=250  // Wait like we do in $power_on.
 
-  // Prefer reset over power_off (100ms vs ~25s).
-  recover_modem:
-    reset
-  
   is_powered_off -> bool?:
     if rx == null: return null
 
@@ -172,7 +168,7 @@ class SaraR5 extends UBloxCellular:
     // Reconfigure the RX pin as normal input.
     rx.configure --input
     return all_low
-  
+
 
 class UPSDA extends at.Command:
   // UPSDA times out after 180s, but since it can be aborted, any timeout can be used.

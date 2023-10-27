@@ -78,11 +78,6 @@ interface Cellular:
 
   power_on -> none
 
-  /**
-  Modem-specific implementation for recovering if the AT interface is unresponsive.
-  */
-  recover_modem -> none
-
   power_off -> none
 
   reset -> none
