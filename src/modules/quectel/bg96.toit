@@ -83,9 +83,3 @@ class BG96 extends QuectelCellular:
       rstkey.set 1
       sleep --ms=150
       rstkey.set 0
-
-  recover_modem -> none:
-    if rstkey:
-      reset
-    else:
-      power_off

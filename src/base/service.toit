@@ -96,6 +96,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     provides CELLULAR_SELECTOR --handler=this
     provides CellularStateService.SELECTOR --handler=(CellularStateServiceHandler_ this)
 
+  update_attempts_ value/int -> int:
+    bucket_[ATTEMPTS_KEY] = value
+    attempts_ = value
+    return value
+
   handle index/int arguments/any --gid/int --client/int -> any:
     if index == CellularService.CONNECT_INDEX:
       return connect client arguments
@@ -141,6 +146,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
     driver/Cellular? := null
     catch: driver = open_driver logger
+    // If we failed to create the driver, it may very well be
+    // because we need to reset the modem. We give it one more
+    // chance, so unless we're already past any deadline set up
+    // by the caller of open, we'll get another shot at making
+    // the modem communicate with us.
     if not driver: driver = open_driver logger
 
     is_configured := false
@@ -158,6 +168,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         logger.info "connecting"
         driver.connect
       driver_ = driver
+      update-attempts_ 0  // Success. Reset the attempts.
       logger.info "connected"
       // Once the network is established, we change the state of the
       // cellular container to indicate that it is now running in
@@ -215,10 +226,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         containers.notify-background-state-changed true
 
   open_driver logger/log.Logger -> Cellular:
-    attempts := attempts_ + 1
-    bucket_[ATTEMPTS_KEY] = attempts
-    attempts_ = attempts
-
+    attempts := update_attempts_ attempts_ + 1
     attempts_since_reset ::= attempts % CELLULAR_FAILS_BETWEEN_RESETS
     attempts_until_reset ::= attempts_since_reset > 0
         ? (CELLULAR_FAILS_BETWEEN_RESETS - attempts_since_reset)
@@ -228,13 +236,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     if attempts_until_reset == 0:
       power_off ::= attempts % (CELLULAR_FAILS_BETWEEN_RESETS * 2) == 0
       reset = power_off ? CELLULAR_RESET_POWER_OFF : CELLULAR_RESET_SOFT
-      if attempts >= 65536:
-        attempts = 0
-        bucket_[ATTEMPTS_KEY] = attempts
-        attempts_ = attempts
+      if attempts >= 65536: attempts = update_attempts_ 0
 
     logger.info "initializing modem" --tags={
-      "attempts": attempts,
+      "attempt": attempts,
       "reset": CELLULAR_RESET_LABELS[reset],
     }
 
@@ -285,9 +290,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         // Turning the cellular modem on failed, so we artificially
         // bump the number of attempts to get close to a reset.
         if attempts_until_reset > 1:
-          attempts += attempts_until_reset - 1
-          critical_do: bucket_[ATTEMPTS_KEY] = attempts
-          attempts_ = attempts
+          critical_do: update_attempts_ attempts + attempts_until_reset - 1
         // Close the UART before closing the pins. This is typically
         // taken care of by a call to driver.close, but in this case
         // we failed to produce a working driver instance.
