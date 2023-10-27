@@ -195,11 +195,11 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     logger := driver_.logger
     try:
       logger.info "closing"
-      driver_.close
+      catch: with_timeout --ms=20_000: driver_.close
       if rts_:
         rts_.configure --output
         rts_.set 0
-      wait_for_quiescent_ rx_
+      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
 
       // The call to driver_.close sends AT+CPWROFF. If the session wasn't
       // active, this can fail and therefore we probe its power state and
@@ -306,7 +306,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     if reset_pin_: reset_pin_.close
     tx_ = rx_ = cts_ = rts_ = power_pin_ = reset_pin_ = null
 
-    // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
+  // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait_for_quiescent_ pin/gpio.Pin:
     pin.configure --input
     while true:
@@ -319,6 +319,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
       // If we timed out, we're done.
       if e: return
+
+      // Sleep for a little while. This allows us to take any
+      // deadlines into consideration.
+      sleep --ms=10
 
 class CellularStateServiceHandler_ implements ServiceHandler CellularStateService:
   provider/CellularServiceProvider
