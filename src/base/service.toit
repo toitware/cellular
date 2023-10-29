@@ -153,14 +153,12 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the modem communicate with us.
     if not driver: driver = open_driver logger
 
-    is_configured := false
     is_radio_enabled := false
     try:
       with_timeout --ms=30_000:
         apn := apn_ or ""
         logger.info "configuring modem" --tags={"apn": apn}
         driver.configure apn --bands=bands_ --rats=rats_
-        is_configured = true
       with_timeout --ms=120_000:
         logger.info "enabling radio"
         driver.enable_radio
@@ -184,11 +182,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
           // failed attempts.
           catch: with_timeout --ms=10_000: driver.detach
           catch: with_timeout --ms=5_000: driver.disable_radio
-        if is_configured:
-          // The driver may try to communicate with the module as
-          // part of closing down, so we need to be careful and
-          // not wait forever for this.
-          catch: with_timeout --ms=20_000: driver.close
+        // The driver may try to communicate with the module as
+        // part of closing down, so we need to be careful and
+        // not wait forever for this.
+        catch: with_timeout --ms=20_000: driver.close
         close_pins_
 
   close_network network/net.Interface -> none:
