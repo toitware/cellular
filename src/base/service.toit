@@ -189,6 +189,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
           // part of closing down, so we need to be careful and
           // not wait forever for this.
           catch: with_timeout --ms=20_000: driver.close
+        else:
+          // If we didn't get the modem configured, we still need
+          // to make sure to close the UART port.
+          catch: driver.close_uart
         close_pins_
 
   close_network network/net.Interface -> none:
