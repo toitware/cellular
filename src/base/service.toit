@@ -268,6 +268,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         rts_.configure --output
         rts_.set 0
 
+      // It appears as if we have to wait for RX to settle down, before
+      // we start to look at the power state.
+      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
+
       // The call to driver.close sends AT+CPWROFF. If the session wasn't
       // active, this can fail and therefore we probe its power state and
       // force it to power down if needed. The routine is not implemented
@@ -281,8 +285,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         logger.info "cannot determine power state, assuming it's correctly powered down"
       else:
         logger.info "module is correctly powered off"
-
-      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
 
     finally:
       close_pins_
