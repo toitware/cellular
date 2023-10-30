@@ -128,7 +128,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the current configuration. Should we pass it through to $open_network
     // somehow instead?
     config_ = config
-
     return connect client
 
   proxy_mask -> int:
