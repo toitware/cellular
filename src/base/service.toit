@@ -62,9 +62,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   // TODO(kasper): Handle the configuration better.
   config_/Map? := null
-  apn_/string? := null
-  bands_/List? := null
-  rats_/List? := null
 
   rx_/gpio.Pin? := null
   tx_/gpio.Pin? := null
@@ -131,17 +128,14 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the current configuration. Should we pass it through to $open_network
     // somehow instead?
     config_ = config
-    apn_ = config.get cellular.CONFIG_APN
-    bands_ = config.get cellular.CONFIG_BANDS
-    rats_ = config.get cellular.CONFIG_RATS
+
     return connect client
 
   proxy_mask -> int:
     return NetworkService.PROXY_RESOLVE | NetworkService.PROXY_UDP | NetworkService.PROXY_TCP
 
   open_network -> net.Interface:
-    level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
-    level = level or log.INFO_LEVEL
+    level := config_.get cellular.CONFIG_LOG_LEVEL --if_absent=: log.INFO_LEVEL
     logger := log.Logger level log.DefaultTarget --name="cellular"
 
     driver/Cellular? := null
@@ -153,11 +147,14 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the modem communicate with us.
     if not driver: driver = open_driver logger
 
+    apn := config_.get cellular.CONFIG_APN --if_absent=: ""
+    bands := config_.get cellular.CONFIG_BANDS
+    rats := config_.get cellular.CONFIG_RATS
+
     try:
       with_timeout --ms=30_000:
-        apn := apn_ or ""
         logger.info "configuring modem" --tags={"apn": apn}
-        driver.configure apn --bands=bands_ --rats=rats_
+        driver.configure apn --bands=bands --rats=rats
       with_timeout --ms=120_000:
         logger.info "enabling radio"
         driver.enable_radio
@@ -272,7 +269,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         rts_.configure --output
         rts_.set 0
 
-      // The call to driver_.close sends AT+CPWROFF. If the session wasn't
+      // The call to driver.close sends AT+CPWROFF. If the session wasn't
       // active, this can fail and therefore we probe its power state and
       // force it to power down if needed. The routine is not implemented
       // for all modems, in which case is_power_off will return null.
@@ -290,7 +287,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
     finally:
       close_pins_
-      apn_ = bands_ = rats_ = null
       log.log log_level "closed" --tags=log_tags
 
   close_pins_ -> none:
