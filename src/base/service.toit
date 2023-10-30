@@ -263,7 +263,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   close_driver driver/Cellular --error/any=null -> none:
     logger := driver.logger
-    log_level := error ? log.WARN-LEVEL : log.INFO-LEVEL
+    log_level := error ? log.WARN_LEVEL : log.INFO_LEVEL
     log_tags := error ? { "error": error } : null
     try:
       log.log log_level "closing" --tags=log_tags
