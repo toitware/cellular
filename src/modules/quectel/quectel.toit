@@ -270,7 +270,6 @@ class UdpSocket extends Socket_ implements udp.Socket:
 Base driver for Quectel Cellular devices, communicating over CAT-NB1 and/or CAT-M1.
 */
 abstract class QuectelCellular extends CellularBase implements Gnss:
-  tcp_connect_mutex_ ::= monitor.Mutex
   resolve_/monitor.Latch? := null
   gnss_users_ := 0
 
@@ -308,12 +307,10 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 
     at_session.register_urc "+QIURC"::
       if it[0] == "dnsgip":
-        value := null
         if it[1] is int and it[1] != 0:
-          value = "RESOLVE FAILED: $it[1]"
+          if resolve_: resolve_.set --exception "RESOLVE FAILED: $it[1]"
         else if it[1] is string:
-          value = [it[1]]
-        if resolve_ and value: resolve_.set value
+          if resolve_: resolve_.set it[1]
       else if it[0] == "recv":
         sockets_.get it[1]
           --if_present=: it.state_.set_state READ_STATE_
@@ -565,7 +562,7 @@ class Interface_ extends CloseableNetwork implements net.Interface:
 
   name/string
   cellular_/QuectelCellular
-  tcp_connect_mutex_ ::= monitor.Mutex
+  resolve_mutex_ ::= monitor.Mutex
   free_port_ := 0
 
   constructor .name .cellular_:
@@ -575,21 +572,21 @@ class Interface_ extends CloseableNetwork implements net.Interface:
     catch:
       return [net.IpAddress.parse host]
 
-    if cellular_.resolve_: throw "RESOLVE ALREADY IN PROGRESS"
+    // The DNS resolution is async, so we have to serialize
+    // the requests and take them one by one.
+    resolve_mutex_.do:
+      cellular_.resolve_ = monitor.Latch
+      try:
+        cellular_.at_.do:
+          it.send
+            QIDNSGIP.async host
 
-    cellular_.resolve_ =  monitor.Latch
-    try:
-      cellular_.at_.do:
-        it.send
-          QIDNSGIP.async host
-
-      cellular_.wait_for_urc_:
-        res := cellular_.resolve_.get
-        if res is string: throw res
-        return res.map: net.IpAddress.parse it
-      unreachable
-    finally:
-      cellular_.resolve_ = null
+        cellular_.wait_for_urc_:
+          result := cellular_.resolve_.get
+          return [net.IpAddress.parse result]
+      finally:
+        cellular_.resolve_ = null
+    unreachable
 
   udp_open -> udp.Socket:
     return udp_open --port=null
