@@ -62,9 +62,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   // TODO(kasper): Handle the configuration better.
   config_/Map? := null
-  apn_/string? := null
-  bands_/List? := null
-  rats_/List? := null
 
   rx_/gpio.Pin? := null
   tx_/gpio.Pin? := null
@@ -131,17 +128,13 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the current configuration. Should we pass it through to $open_network
     // somehow instead?
     config_ = config
-    apn_ = config.get cellular.CONFIG_APN
-    bands_ = config.get cellular.CONFIG_BANDS
-    rats_ = config.get cellular.CONFIG_RATS
     return connect client
 
   proxy_mask -> int:
     return NetworkService.PROXY_RESOLVE | NetworkService.PROXY_UDP | NetworkService.PROXY_TCP
 
   open_network -> net.Interface:
-    level := config_ ? config_.get cellular.CONFIG_LOG_LEVEL : null
-    level = level or log.INFO_LEVEL
+    level := config_.get cellular.CONFIG_LOG_LEVEL --if_absent=: log.INFO_LEVEL
     logger := log.Logger level log.DefaultTarget --name="cellular"
 
     driver/Cellular? := null
@@ -153,19 +146,19 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     // the modem communicate with us.
     if not driver: driver = open_driver logger
 
-    is_radio_enabled := false
+    apn := config_.get cellular.CONFIG_APN --if_absent=: ""
+    bands := config_.get cellular.CONFIG_BANDS
+    rats := config_.get cellular.CONFIG_RATS
+
     try:
       with_timeout --ms=30_000:
-        apn := apn_ or ""
         logger.info "configuring modem" --tags={"apn": apn}
-        driver.configure apn --bands=bands_ --rats=rats_
+        driver.configure apn --bands=bands --rats=rats
       with_timeout --ms=120_000:
         logger.info "enabling radio"
         driver.enable_radio
-        is_radio_enabled = true
         logger.info "connecting"
         driver.connect
-      driver_ = driver
       update-attempts_ 0  // Success. Reset the attempts.
       logger.info "connected"
       // Once the network is established, we change the state of the
@@ -176,48 +169,18 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       return driver.network_interface
     finally: | is_exception exception |
       if is_exception:
-        logger.warn "closing" --tags={"error": exception.value}
-        if is_radio_enabled:
-          // TODO(kasper): We should probably only detach after e.g. 10
-          // failed attempts.
-          catch: with_timeout --ms=10_000: driver.detach
-          catch: with_timeout --ms=5_000: driver.disable_radio
-        // The driver may try to communicate with the module as
-        // part of closing down, so we need to be careful and
-        // not wait forever for this.
-        catch: with_timeout --ms=20_000: driver.close
-        close_pins_
+        critical_do: close_driver driver --error=exception.value
+      else:
+        driver_ = driver
 
   close_network network/net.Interface -> none:
-    logger := driver_.logger
-    try:
-      logger.info "closing"
-      catch: with_timeout --ms=20_000: driver_.close
-      if rts_:
-        rts_.configure --output
-        rts_.set 0
-      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
-
-      // The call to driver_.close sends AT+CPWROFF. If the session wasn't
-      // active, this can fail and therefore we probe its power state and
-      // force it to power down if needed. The routine is not implemented
-      // for all modems, in which case is_power_off will return null.
-      // Therefore, we explicitly check for false.
-      is_powered_off := driver_.is_powered_off
-      if is_powered_off == false:
-        logger.info "power off not complete, forcing power down"
-        driver_.power_off
-      else if is_powered_off == null:
-        logger.info "cannot determine power state, assuming it's correctly powered down"
-      else:
-        logger.info "module is correctly powered off"
-
-    finally:
-      close_pins_
-      apn_ = bands_ = rats_ = null
-      driver_ = null
-      critical_do:
-        logger.info "closed"
+    driver := driver_
+    driver_ = null
+    logger := driver.logger
+    critical_do:
+      try:
+        close_driver driver
+      finally:
         // After closing the network, we change the state of the cellular
         // container to indicate that it is now running in the background.
         containers.notify-background-state-changed true
@@ -293,6 +256,39 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         // we failed to produce a working driver instance.
         port.close
         close_pins_
+
+  close_driver driver/Cellular --error/any=null -> none:
+    logger := driver.logger
+    log_level := error ? log.WARN_LEVEL : log.INFO_LEVEL
+    log_tags := error ? { "error": error } : null
+    try:
+      log.log log_level "closing" --tags=log_tags
+      catch: with_timeout --ms=20_000: driver.close
+      if rts_:
+        rts_.configure --output
+        rts_.set 0
+
+      // It appears as if we have to wait for RX to settle down, before
+      // we start to look at the power state.
+      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
+
+      // The call to driver.close sends AT+CPWROFF. If the session wasn't
+      // active, this can fail and therefore we probe its power state and
+      // force it to power down if needed. The routine is not implemented
+      // for all modems, in which case is_power_off will return null.
+      // Therefore, we explicitly check for false.
+      is_powered_off := driver.is_powered_off
+      if is_powered_off == false:
+        logger.info "power off not complete, forcing power down"
+        driver.power_off
+      else if is_powered_off == null:
+        logger.info "cannot determine power state, assuming it's correctly powered down"
+      else:
+        logger.info "module is correctly powered off"
+
+    finally:
+      close_pins_
+      log.log log_level "closed" --tags=log_tags
 
   close_pins_ -> none:
     if tx_: tx_.close
