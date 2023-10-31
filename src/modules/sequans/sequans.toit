@@ -256,8 +256,6 @@ class UdpSocket extends Socket_ implements udp.Socket:
 Base driver for Sequans Cellular devices, communicating over CAT-NB1 and/or CAT-M1.
 */
 abstract class SequansCellular extends CellularBase:
-  tcp_connect_mutex_ ::= monitor.Mutex
-
   closed_/monitor.Latch ::= monitor.Latch
 
   /**
@@ -457,7 +455,6 @@ class Interface_ extends CloseableNetwork implements net.Interface:
 
   name/string
   cellular_/SequansCellular
-  tcp_connect_mutex_ ::= monitor.Mutex
   free_port_ := 0
 
   constructor .name .cellular_:
