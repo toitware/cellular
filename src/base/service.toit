@@ -51,7 +51,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   static NETWORK_SELECTOR ::= ServiceSelector
       --uuid=NetworkService.SELECTOR.uuid
       --major=0
-      --minor=3
+      --minor=4
   static CELLULAR_SELECTOR ::= ServiceSelector
       --uuid=CellularService.SELECTOR.uuid
       --major=0
