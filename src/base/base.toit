@@ -68,19 +68,6 @@ abstract class CellularBase implements Cellular:
     r := at_.do: it.action "+CGMR"
     return r.last.first
 
-  is_connected -> bool:
-    with_timeout --ms=5_000:
-      at_.do: | session/at.Session |
-        while true:
-          res := session.read "+CEREG"
-          state := res.last[1]
-          // Registered to home network (1) or roaming (5).
-          if state == 1 or state == 5: return true
-          // State (4) is unknown, wait and see it if resolves.
-          if state != 4: return false
-          sleep --ms=250
-    return false
-
   scan_for_operators -> List:
     operators := []
     at_.do: | session/at.Session |
@@ -97,12 +84,11 @@ abstract class CellularBase implements Cellular:
 
   connect_psm -> none:
     at_.do: | session/at.Session |
-      wait_for_connected_ session null
+      connect_ session --operator=null --psm
 
   connect --operator/Operator?=null -> none:
     at_.do: | session/at.Session |
-      if not operator: send_abortable_ session COPS.automatic
-      wait_for_connected_ session operator
+      connect_ session --operator=operator --no-psm
 
   // TODO(Lau): Support the other operator formats than numeric.
   get_connected_operator -> Operator?:
@@ -228,57 +214,45 @@ abstract class CellularBase implements Cellular:
       if session: session.action "" --no-check
       else: at_.do: it.action "" --no-check
 
-  set_up_wait_for_ session/at.Session cmd/string connected/monitor.Latch  --on_connect/Lambda=(:: null) -> none:
-    session.register_urc cmd ::
-      state := it.first
-      if state == 1 or state == 5:
-        connected.set true
-        on_connect.call
-      if state == 3: connected.set REGISTRATION_DENIED_ERROR
-      if state == 80: connected.set "connection lost"
-
-  check_connected_ session/at.Session cmd/string connected/monitor.Latch --on_connect/Lambda=(:: null) -> bool:
-      res := session.read cmd
-      state := res.last[1]
-      if state == 1 or state == 5:
-        connected.set true
-        on_connect.call
-        return true
-      if state == 3: connected.set REGISTRATION_DENIED_ERROR
-      if state == 80: connected.set "connection lost"
-      return false
-
-  wait_for_connected_ session/at.Session operator/Operator? -> none:
-    connected := monitor.Latch
+  connect_ session/at.Session --operator/Operator? --psm/bool -> none:
     failed_to_connect = true
     is_lte_connection_ = false
 
-    set_up_wait_for_ session "+CEREG" connected
-    if support_gsm_:
-      set_up_wait_for_ session "+CGREG" connected --on_connect=::
-        is_lte_connection_ = true
-        use_psm = false
+    done := monitor.Latch
+    registrations := { "+CEREG" }
+    if support_gsm_: registrations.add "+CGREG"
+    failed := {}
+
+    registrations.do: | command/string |
+      session.register_urc command::
+        state := it.first
+        if state == 1 or state == 5:
+          failed.remove command
+          done.set command
+        else if state == 3 or state == 80:
+          failed.add command
+          error := state == 3 ? REGISTRATION_DENIED_ERROR : "connection lost"
+          // If all registrations have failed, we report the last error.
+          if failed.size == registrations.size: done.set --exception error
 
     try:
-      if operator:
-        send_abortable_ session (COPS.manual operator.op --rat=operator.rat)
+      // Enable registration events.
+      registrations.do: session.set it [2]
 
-      // Enable events.
-      session.set "+CEREG" [2]
-      if support_gsm_: session.set "+CGREG" [2]
+      if not psm:
+        command := operator
+            ? COPS.manual operator.op --rat=operator.rat
+            : COPS.automatic
+        send_abortable_ session command
 
-      // Make sure we didn't miss the connect event before we set +CEREG=2.
-      check_connected_ session "+CEREG" connected
-      if support_gsm_:
-        check_connected_ session "+CGREG" connected --on_connect=::
+      wait_for_urc_ --session=session:
+        if done.get == "+CGREG":
           is_lte_connection_ = true
           use_psm = false
 
-      result := wait_for_urc_ --session=session: connected.get
-      if result is string: throw result
     finally:
-      session.unregister_urc "+CEREG"
-      if support_gsm_: session.unregister_urc "+CGREG"
+      // TODO(kasper): Should we unregister the interest in the events?
+      registrations.do: session.unregister_urc it
 
     on_connected_ session
     failed_to_connect = false

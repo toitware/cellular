@@ -39,8 +39,6 @@ interface Cellular:
   */
   iccid -> string
 
-  is_connected -> bool
-
   configure apn/string --bands/List?=null --rats/List?=null
 
   /**
