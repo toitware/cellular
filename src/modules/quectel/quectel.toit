@@ -21,6 +21,10 @@ CONNECTED_STATE_  ::= 1 << 0
 READ_STATE_       ::= 1 << 1
 CLOSE_STATE_      ::= 1 << 2
 
+TIMEOUT_QIOPEN ::= Duration --s=150
+TIMEOUT_QIRD   ::= Duration --s=5
+TIMEOUT_QISEND ::= Duration --s=5
+
 monitor SocketState_:
   state_/int := 0
   dirty_/bool := false
@@ -115,7 +119,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
     super cellular id
 
     socket_call:
-      it.set "+QIOPEN" [
+      it.set "+QIOPEN" --timeout=TIMEOUT_QIOPEN [
         cellular_.cid_,
         get_id_,
         "TCP",
@@ -139,7 +143,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       if state & CLOSE_STATE_ != 0:
         return null
       else if state & READ_STATE_ != 0:
-        r := socket_call: it.set "+QIRD" [get_id_, 1500]
+        r := socket_call: it.set "+QIRD" --timeout=TIMEOUT_QIRD [get_id_, 1500]
         out := r.single
         if out[0] > 0: return out[1]
         state_.clear READ_STATE_
@@ -154,7 +158,9 @@ class TcpSocket extends Socket_ implements tcp.Socket:
 
     e := catch --unwind=(: it is not UnavailableException):
       socket_call:
-        it.set "+QISEND" [get_id_, data.size] --data=data
+        it.set "+QISEND" [get_id_, data.size]
+            --timeout=TIMEOUT_QISEND
+            --data=data
       // Give processing time to other tasks, to avoid busy write-loop that starves readings.
       yield
       return data.size
@@ -194,7 +200,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
     super cellular id
 
     socket_call:
-      it.set "+QIOPEN" [
+      it.set "+QIOPEN" --timeout=TIMEOUT_QIOPEN [
         cellular_.cid_,
         get_id_,
         "UDP SERVICE",
@@ -227,7 +233,10 @@ class UdpSocket extends Socket_ implements udp.Socket:
 
   send_ address data -> int:
     if data.size > mtu: throw "PAYLOAD_TO_LARGE"
-    res := cellular_.at_.do: it.set "+QISEND" [get_id_, data.size, address.ip.stringify, address.port] --data=data
+    res := socket_call:
+      it.set "+QISEND" [get_id_, data.size, address.ip.stringify, address.port]
+          --timeout=TIMEOUT_QISEND
+          --data=data
     return data.size
 
   receive -> udp.Datagram?:
@@ -236,7 +245,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
       if state & CLOSE_STATE_ != 0:
         return null
       else if state & READ_STATE_ != 0:
-        res := socket_call: (it.set "+QIRD" [get_id_]).single
+        res := socket_call: (it.set "+QIRD" --timeout=TIMEOUT_QIRD [get_id_]).single
         if res[0] > 0:
           return udp.Datagram
             res[3]
@@ -578,9 +587,7 @@ class Interface_ extends CloseableNetwork implements net.Interface:
       cellular_.resolve_ = monitor.Latch
       try:
         cellular_.at_.do:
-          it.send
-            QIDNSGIP.async host
-
+          it.send (QIDNSGIP.async host)
         cellular_.wait_for_urc_:
           result := cellular_.resolve_.get
           return [net.IpAddress.parse result]
@@ -649,9 +656,15 @@ class QICLOSE extends at.Command:
   constructor id/int timeout/Duration:
     super.set "+QICLOSE" --parameters=[id, timeout.in_s] --timeout=at.Command.DEFAULT_TIMEOUT + timeout
 
-class QIDEACT extends at.Command:
+class QIACT extends at.Command:
+  static TIMEOUT ::= Duration --s=150
   constructor id/int:
-    super.set "+QIDEACT" --parameters=[id]
+    super.set "+QIACT" --parameters=[id] --timeout=TIMEOUT
+
+class QIDEACT extends at.Command:
+  static TIMEOUT ::= Duration --s=40
+  constructor id/int:
+    super.set "+QIDEACT" --parameters=[id] --timeout=TIMEOUT
 
 class QICFG extends at.Command:
   /**

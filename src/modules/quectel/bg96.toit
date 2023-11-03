@@ -58,7 +58,7 @@ class BG96 extends QuectelCellular:
   on_connected_ session/at.Session:
     // Attach to network.
     session.set "+QICSGP" [cid_]
-    session.set "+QIACT" [cid_]
+    session.send (QIACT cid_)
 
   on_reset session/at.Session:
     session.set "+CFUN" [1, 1]

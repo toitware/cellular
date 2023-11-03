@@ -214,7 +214,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
 
   send_ address data -> int:
     if data.size > mtu: throw "PAYLOAD_TO_LARGE"
-    res := cellular_.at_.do: it.set "+SQNSSENDEXT" [get_id_, data.size] --data=data
+    res := socket_call: it.set "+SQNSSENDEXT" [get_id_, data.size] --data=data
     return data.size
 
   receive -> udp.Datagram?:

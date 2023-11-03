@@ -61,28 +61,6 @@ class Socket_:
     if not id_: throw "socket is closed"
     return id_
 
-  /**
-  Will capture exceptions and translate to socket-related errors.
-  */
-  socket_call [block]:
-    // Ensure no other socket call can come in between.
-    cellular_.at_.do: | session |
-      e := catch:
-        return block.call session
-      throw (last_error_ session e)
-    unreachable
-
-  /**
-  Returns the latest socket error (even if OK).
-  */
-  last_error_ session/at.Session original_error/string="" -> Exception:
-    error/int := (session.set "+USOCTL" [get_id_, 1]).last[2]
-    if error == 0: // OK
-      throw (UnavailableException original_error)
-    if error == 11: // EWOULDBLOCK / EAGAIN
-      throw (UnavailableException original_error)
-    throw (UnknownException "SOCKET ERROR $error ($original_error)")
-
 class TcpSocket extends Socket_ implements tcp.Socket:
   static OPTION_TCP_NO_DELAY_   ::= 1
   static OPTION_TCP_KEEP_ALIVE_ ::= 2
