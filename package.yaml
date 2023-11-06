@@ -1,3 +1,4 @@
 name: cellular
+description: Cellular drivers for a selection of cellular modems.
 environment:
   sdk: ^2.0.0-alpha.80
