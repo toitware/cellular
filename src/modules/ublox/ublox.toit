@@ -428,7 +428,7 @@ abstract class UBloxCellular extends CellularBase:
     if mno >= 100 and current_mno == MNO_GLOBAL: return false
     return current_mno != mno
 
-  configure apn/string --mno/int=100 --bands=null --rats=null:
+  configure apn/string --mno/int=90 --bands=null --rats=null:
     at_.do: | session/at.Session |
       while true:
         should_reboot/bool := false
