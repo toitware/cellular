@@ -323,7 +323,6 @@ class COPS extends at.Command:
   // COPS times out after 180s, but since it can be aborted, any timeout can be used.
   static MAX_TIMEOUT ::= Duration --m=3
   static FORMAT_NUMERIC ::= 2
-
   static MODE_AUTOMATIC ::= 0
   static MODE_MANUAL ::= 1
   static MODE_DEREGISTER ::= 2
@@ -331,7 +330,6 @@ class COPS extends at.Command:
   static MODE_MANUAL_THEN_AUTO ::= 4
   static MODE_EXTENDED_SEARCH ::= 5
   static MODE_EXTENDED_SEARCH_NO_TAGS ::= 6
-
   constructor.manual operator --rat=null:
     args := [MODE_MANUAL, FORMAT_NUMERIC, operator]
     if rat: args.add rat
