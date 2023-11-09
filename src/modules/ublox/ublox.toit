@@ -417,7 +417,6 @@ abstract class UBloxCellular extends CellularBase:
   static MNO_UNDEFINED  /int ::= 0
   static MNO_SIM_SELECT /int ::= 1
   static MNO_GLOBAL     /int ::= 90
-
   should_set_mno_ session/at.Session mno/int -> bool:
     current_mno := get_mno_ session
     // If we're asking for SIM ICCID/IMSI select (1), we should only
