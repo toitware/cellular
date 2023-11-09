@@ -23,6 +23,7 @@ import .cellular
 import ..api.state
 
 CELLULAR_FAILS_BETWEEN_RESETS /int ::= 8
+CELLULAR_FAILS_UNTIL_SCAN  /int ::= 2
 
 CELLULAR_RESET_NONE      /int ::= 0
 CELLULAR_RESET_SOFT      /int ::= 1
@@ -158,6 +159,15 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         logger.info "enabling radio"
         driver.enable_radio
         logger.info "connecting"
+        // After the CELLULAR_FAILS_UNTIL_SCAN threshold has passed,
+        // we initiate a scan every third attempt to limit collisions
+        // with reset attempts.
+        if (attempts_ > CELLULAR_FAILS_UNTIL_SCAN) and (attempts_ % 3 == 0):
+          logger.info "scanning for operators" --tags={"attempt": attempts_}
+          operators := driver.scan_for_operators
+          // TODO: Track which operators always fail and blacklist them
+          // or select other ones manually to prevent reselection of
+          // non-functional operators.
         driver.connect
       update-attempts_ 0  // Success. Reset the attempts.
       logger.info "connected"
