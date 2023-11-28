@@ -15,7 +15,7 @@ import ...base.at as at
 import ...base.base
 import ...base.cellular
 import ...base.exceptions
-import ...base.location show Location GnssLocation
+import ...location show Location GnssLocation
 
 CONNECTED_STATE_  ::= 1 << 0
 READ_STATE_       ::= 1 << 1
@@ -517,6 +517,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     sleep --ms=100
 
   gnss_start:
+    at_.do: gnss_eval_ it
     gnss_users_++
     at_.do: gnss_eval_ it
 
@@ -548,7 +549,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     if not state: return
     if gnss_users_ > 0:
       if state != 1:
-        session.set "+QGPS" [1]
+        session.set "+QGPS" [1, 255]
     else if state != 0:
       session.action "+QGPSEND"
 

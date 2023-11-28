@@ -5,6 +5,7 @@
 import gpio
 import uart
 import log
+import monitor
 
 import net
 import net.cellular
@@ -21,6 +22,8 @@ import system.storage
 
 import .cellular
 import ..api.state
+import ..api.location
+import ..config
 
 CELLULAR_FAILS_BETWEEN_RESETS /int ::= 8
 
@@ -28,20 +31,6 @@ CELLULAR_RESET_NONE      /int ::= 0
 CELLULAR_RESET_SOFT      /int ::= 1
 CELLULAR_RESET_POWER_OFF /int ::= 2
 CELLULAR_RESET_LABELS ::= ["none", "soft", "power-off"]
-
-pin config/Map key/string -> gpio.Pin?:
-  value := config.get key
-  if not value: return null
-  if value is int: return gpio.Pin value
-  if value is not List or value.size != 2:
-    throw "illegal pin configuration: $key == $value"
-
-  pin := gpio.Pin value[0]
-  mode := value[1]
-  if mode != cellular.CONFIG_ACTIVE_HIGH: pin = gpio.InvertedPin pin
-  pin.configure --output --open_drain=(mode == cellular.CONFIG_OPEN_DRAIN)
-  pin.set 0  // Drive to in-active.
-  return pin
 
 abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   // We cellular service has been developed against known
@@ -60,24 +49,17 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   // TODO(kasper): Let this be configurable.
   static SUSTAIN_FOR_DURATION_ ::= Duration --ms=100
 
-  // TODO(kasper): Handle the configuration better.
-  config_/Map? := null
-
-  rx_/gpio.Pin? := null
-  tx_/gpio.Pin? := null
-  cts_/gpio.Pin? := null
-  rts_/gpio.Pin? := null
-
-  power_pin_/gpio.Pin? := null
-  reset_pin_/gpio.Pin? := null
+  config/CellularConfiguration
 
   driver_/Cellular? := null
+  driver_clients_/int := 0
+  driver_mutex_/monitor.Mutex := monitor.Mutex
 
   static ATTEMPTS_KEY ::= "attempts"
   bucket_/storage.Bucket ::= storage.Bucket.open --flash "toitware.com/cellular"
   attempts_/int := ?
 
-  constructor name/string --major/int --minor/int --patch/int=0:
+  constructor name/string --major/int --minor/int --patch/int=0 --.config:
     attempts/int? := null
     catch: attempts = bucket_.get ATTEMPTS_KEY
     attempts_ = attempts or 0
@@ -106,86 +88,90 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   abstract create_driver -> Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
-      --power/gpio.Pin?
-      --reset/gpio.Pin?
-      --baud_rates/List?
+      --config/CellularConfiguration
+
+  open_driver --logger:
+    driver_mutex_.do:
+      if driver_:
+        driver_clients_++
+        driver_.logger.debug "increasing driver count to $driver_clients_"
+        return
+
+      // Before the driver is initialized, we change the state of the
+      // cellular container to indicate that it is now running in
+      // the foreground and needs to have its driver release
+      // in order for the shutdown to be clean.
+      containers.notify-background-state-changed false
+      is-created := false
+      try:
+        driver/Cellular? := null
+        catch: driver = open_driver_ logger
+        // If we failed to create the driver, it may very well be
+        // because we need to reset the modem. We give it one more
+        // chance, so unless we're already past any deadline set up
+        // by the caller of open, we'll get another shot at making
+        // the modem communicate with us.
+        if not driver: driver = open_driver_ logger
+        driver_clients_ = 1
+        driver_ = driver
+        is-created = true
+      finally:
+        if not is-created:
+          // We failed to create the driver, so mark the container free
+          // to be stopped
+          containers.notify-background-state-changed true
+
+  close_driver --error/any=null:
+    driver_clients_--
+    if driver_clients_ == 0:
+      driver := driver_
+      driver_ = null
+      driver_mutex_.do:
+        critical_do:
+          try:
+            close_driver_ driver --error=error
+          finally:
+            // After closing the driver, we change the state of the cellular
+            // container to indicate that it is now running in the background.
+            containers.notify-background-state-changed true
+    else:
+      log_level := error ? log.WARN_LEVEL : log.INFO_LEVEL
+      log_tags := error ? { "error": error } : null
+      driver_.logger.log log_level "decreasing driver count to to $driver_clients_" --tags=log_tags
 
   connect client/int config/Map? -> List:
-    if not config:
-      config = {:}
-      // TODO(kasper): It feels like the configurations present as assets
-      // should form the basis (pins, etc.) and then additional options
-      // provided by the client can give the rest as an overlay.
-      assets.decode.get "cellular" --if_present=: | encoded |
-        catch --trace: config = tison.decode encoded
-      // TODO(kasper): Should we mix in configuration properties from
-      // firmware.config?
-    // TODO(kasper): This isn't a super elegant way of dealing with
-    // the current configuration. Should we pass it through to $open_network
-    // somehow instead?
-    config_ = config
+    this.config.update-from-map_ config
     return connect client
 
   proxy_mask -> int:
     return NetworkService.PROXY_RESOLVE | NetworkService.PROXY_UDP | NetworkService.PROXY_TCP
 
   open_network -> net.Interface:
-    level := config_.get cellular.CONFIG_LOG_LEVEL --if_absent=: log.INFO_LEVEL
-    logger := log.Logger level log.DefaultTarget --name="cellular"
+    logger := log.Logger config.log-level log.DefaultTarget --name="cellular"
 
-    driver/Cellular? := null
-    catch: driver = open_driver logger
-    // If we failed to create the driver, it may very well be
-    // because we need to reset the modem. We give it one more
-    // chance, so unless we're already past any deadline set up
-    // by the caller of open, we'll get another shot at making
-    // the modem communicate with us.
-    if not driver: driver = open_driver logger
-
-    apn := config_.get cellular.CONFIG_APN --if_absent=: ""
-    bands := config_.get cellular.CONFIG_BANDS
-    rats := config_.get cellular.CONFIG_RATS
+    open_driver --logger=logger
 
     try:
       with_timeout --ms=30_000:
-        logger.info "configuring modem" --tags={"apn": apn}
-        driver.configure apn --bands=bands --rats=rats
+        logger.info "configuring modem" --tags={"apn": config.apn}
+        driver_.configure config.apn --bands=config.bands --rats=config.rats
       with_timeout --ms=120_000:
         logger.info "enabling radio"
-        driver.enable_radio
+        driver_.enable_radio
         logger.info "connecting"
-        driver.connect
+        driver_.connect
       update-attempts_ 0  // Success. Reset the attempts.
       logger.info "connected"
-      // Once the network is established, we change the state of the
-      // cellular container to indicate that it is now running in
-      // the foreground and needs to have its proxied networks closed
-      // correctly in order for the shutdown to be clean.
-      containers.notify-background-state-changed false
-      return driver.network_interface
+
+      return driver_.network_interface
     finally: | is_exception exception |
       if is_exception:
-        critical_do: close_driver driver --error=exception.value
-      else:
-        driver_ = driver
+        close_driver
 
   close_network network/net.Interface -> none:
-    driver := driver_
-    driver_ = null
-    logger := driver.logger
-    critical_do:
-      try:
-        close_driver driver
-      finally:
-        // After closing the network, we change the state of the cellular
-        // container to indicate that it is now running in the background.
-        containers.notify-background-state-changed true
+    close_driver
 
-  open_driver logger/log.Logger -> Cellular:
+  open_driver_ logger/log.Logger -> Cellular:
     attempts := update_attempts_ attempts_ + 1
     attempts_since_reset ::= attempts % CELLULAR_FAILS_BETWEEN_RESETS
     attempts_until_reset ::= attempts_since_reset > 0
@@ -203,38 +189,18 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       "reset": CELLULAR_RESET_LABELS[reset],
     }
 
-    uart_baud_rates/List? := config_.get cellular.CONFIG_UART_BAUD_RATE
-        --if_present=: it is List ? it : [it]
-    uart_high_priority/bool := config_.get cellular.CONFIG_UART_PRIORITY
-        --if_present=: it == cellular.CONFIG_PRIORITY_HIGH
-        --if_absent=: false
-
-    tx_  = pin config_ cellular.CONFIG_UART_TX
-    rx_  = pin config_ cellular.CONFIG_UART_RX
-    cts_ = pin config_ cellular.CONFIG_UART_CTS
-    rts_ = pin config_ cellular.CONFIG_UART_RTS
-
-    power_pin_ = pin config_ cellular.CONFIG_POWER
-    reset_pin_ = pin config_ cellular.CONFIG_RESET
-
     port := uart.Port
         --baud_rate=Cellular.DEFAULT_BAUD_RATE
-        --high_priority=uart_high_priority
-        --tx=tx_
-        --rx=rx_
-        --cts=cts_
-        --rts=rts_
+        --high_priority=config.uart-high-priority
+        --tx=config.uart-tx
+        --rx=config.uart-rx
+        --cts=config.uart-cts
+        --rts=config.uart-rts
 
     driver := create_driver
         --logger=logger
         --port=port
-        --rx=rx_
-        --tx=tx_
-        --rts=rts_
-        --cts=cts_
-        --power=power_pin_
-        --reset=reset_pin_
-        --baud_rates=uart_baud_rates
+        --config=config
 
     try:
       if reset == CELLULAR_RESET_SOFT:
@@ -257,20 +223,20 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         port.close
         close_pins_
 
-  close_driver driver/Cellular --error/any=null -> none:
+  close_driver_ driver/Cellular --error/any=null -> none:
     logger := driver.logger
     log_level := error ? log.WARN_LEVEL : log.INFO_LEVEL
     log_tags := error ? { "error": error } : null
     try:
       log.log log_level "closing" --tags=log_tags
       catch: with_timeout --ms=20_000: driver.close
-      if rts_:
-        rts_.configure --output
-        rts_.set 0
+      if config.uart-rts:
+        config.uart-rts.configure --output
+        config.uart-rts.set 0
 
       // It appears as if we have to wait for RX to settle down, before
       // we start to look at the power state.
-      catch: with_timeout --ms=10_000: wait_for_quiescent_ rx_
+      catch: with_timeout --ms=10_000: wait_for_quiescent_ config.uart-rx
 
       // The call to driver.close sends AT+CPWROFF. If the session wasn't
       // active, this can fail and therefore we probe its power state and
@@ -291,13 +257,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       log.log log_level "closed" --tags=log_tags
 
   close_pins_ -> none:
-    if tx_: tx_.close
-    if rx_: rx_.close
-    if cts_: cts_.close
-    if rts_: rts_.close
-    if power_pin_: power_pin_.close
-    if reset_pin_: reset_pin_.close
-    tx_ = rx_ = cts_ = rts_ = power_pin_ = reset_pin_ = null
+    config.close-owned-pins_
 
   // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait_for_quiescent_ pin/gpio.Pin:
@@ -316,6 +276,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       // Sleep for a little while. This allows us to take any
       // deadlines into consideration.
       sleep --ms=10
+
 
 class CellularStateServiceHandler_ implements ServiceHandler CellularStateService:
   provider/CellularServiceProvider
@@ -348,3 +309,60 @@ class CellularStateServiceHandler_ implements ServiceHandler CellularStateServic
     driver := provider.driver_
     if not driver: return null
     return driver.version
+
+
+abstract class LocationServiceProvider extends CellularServiceProvider:
+  gnss-started/bool := false
+
+  constructor name/string --major/int --minor/int --patch/int=0 --config/CellularConfiguration:
+    super "location/$name" --major=major --minor=minor --patch=patch --config=config
+    provides LocationService.SELECTOR --handler=this
+
+  handle index/int arguments/any --gid/int --client/int -> any:
+    if index == LocationService.START-INDEX:
+      return start-location arguments
+    else if index == LocationService.READ-LOCATION-INDEX:
+      return read-location
+    else if index == LocationService.STOP-INDEX:
+      return stop-location
+
+    return super index arguments --gid=gid --client=client
+
+  start-location config-map/Map?:
+    if gnss-started:
+      throw "INVALID_STATE"
+    config.update-from-map_ config-map
+
+    logger := log.Logger config.log-level log.DefaultTarget --name="cellular"
+
+    open_driver --logger=logger
+
+    gnss := driver_ as Gnss
+
+    try:
+      logger.info "connecting to location service on modem"
+      gnss.gnss_start
+    finally: | is_exception e |
+      if is_exception:
+        close_driver
+      else:
+        gnss-started = true
+
+  read-location:
+    if not gnss-started:
+      throw "INVALID_STATE"
+    location := (driver_ as Gnss).gnss_location
+    if not location: return null
+    return location.to_byte_array
+
+  stop-location:
+    if not gnss-started:
+      throw "INVALID_STATE"
+    driver_.logger.info "disconnecting from the location service on the modem"
+    gnss := driver_ as Gnss
+    try:
+      gnss.gnss_stop
+    finally:
+      gnss-started = false
+      close_driver
+
