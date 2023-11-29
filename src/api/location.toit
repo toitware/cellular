@@ -1,15 +1,13 @@
 import system.services
 import ..location show Location GnssLocation
 
-location-service/LocationService ::= (LocationServiceClient).open as LocationService
-
 interface LocationService:
   static SELECTOR ::= services.ServiceSelector
       --uuid="b833ce53-3c2c-400c-be82-6538d2409f2d"
       --major=0
       --minor=1
 
-  start config/Map
+  start config/Map?=null
   static START-INDEX ::= 2000
 
   read-location -> GnssLocation?
@@ -25,7 +23,7 @@ class LocationServiceClient extends services.ServiceClient implements LocationSe
     assert: selector.matches SELECTOR
     super selector
 
-  start config/Map?:
+  start config/Map?=null:
     invoke_ LocationService.START-INDEX config
 
   read-location -> GnssLocation?:

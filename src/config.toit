@@ -20,28 +20,28 @@ class CellularConfiguration:
 
   /**
   Notice that $power and $reset should be active high. If your cellular module defines these as active low, then
-  use $gpio.InvertedPin.
+  use $InvertedPin.
   */
   constructor
-    --.uart-rx=null
-    --.uart-tx=null
-    --.uart-cts=null
-    --.uart-rts=null
-    --.power=null
-    --.reset=null
-    --.uart-baud-rates=null
-    --.uart-high-priority=false
-    --.apn=""
-    --.rats=null
-    --.bands=null
-    --.log-level=level.INFO-LEVEL:
+      --.uart-rx=null
+      --.uart-tx=null
+      --.uart-cts=null
+      --.uart-rts=null
+      --.power=null
+      --.reset=null
+      --.uart-baud-rates=null
+      --.uart-high-priority=false
+      --.apn=""
+      --.rats=null
+      --.bands=null
+      --.log-level=level.INFO-LEVEL:
 
-  RX-OWNED_ ::= 0
-  TX-OWNED_ ::= 1
-  RTS-OWNED_ ::= 2
-  CTS-OWNED_ ::= 3
-  POWER-OWNED_ ::= 4
-  RESET-OWNED_ ::= 5
+  static RX-OWNED_ ::= 0
+  static TX-OWNED_ ::= 1
+  static RTS-OWNED_ ::= 2
+  static CTS-OWNED_ ::= 3
+  static POWER-OWNED_ ::= 4
+  static RESET-OWNED_ ::= 5
 
   update-from-map_ config/Map?:
     if not config: return
