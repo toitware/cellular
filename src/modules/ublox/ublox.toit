@@ -9,7 +9,7 @@ import log
 import monitor
 import uart
 
-import system.base.network show CloseableNetwork
+import system.base.network show CloseableNetwork ProxyingNetworkServiceProvider
 
 import ...base.at as at
 import ...base.base
@@ -71,8 +71,9 @@ class TcpSocket extends Socket_ implements tcp.Socket:
   static MAX_SIZE_ ::= 1024
 
   peer_address/net.SocketAddress ::= ?
+  provider_/ProxyingNetworkServiceProvider?
 
-  constructor cellular/UBloxCellular id/int .peer_address:
+  constructor cellular/UBloxCellular id/int .peer_address .provider_:
     super cellular id
 
   // TODO(kasper): Deprecated. Remove.
@@ -132,10 +133,13 @@ class TcpSocket extends Socket_ implements tcp.Socket:
         // modem in an awful state. Close the session to force us to
         // start over.
         if is_exception:
-          session.close
-          // The modem may become unresponsive at this point, so we
-          // try to force it to power off.
-          cellular_.power_off
+          if provider_:
+            provider_.disconnect
+          else:
+            session.close
+            // The modem may become unresponsive at this point, so we
+            // try to force it to power off.
+            cellular_.power_off
     // Give processing time to other tasks, to avoid busy write-loop that starves readings.
     yield
     return data.size
@@ -590,8 +594,8 @@ abstract class UBloxCellular extends CellularBase:
     uart_.baud_rate = baud_rate
     sleep --ms=100
 
-  network_interface -> net.Interface:
-    return Interface_ network_name this
+  open_network --provider/ProxyingNetworkServiceProvider?=null -> net.Interface:
+    return Interface_ network_name this provider
 
   test_tx_:
     // Test routine for entering test most and broadcasting 23dBm on channel 20
@@ -611,9 +615,10 @@ class UBloxConstants implements Constants:
 class Interface_ extends CloseableNetwork implements net.Interface:
   name/string
   cellular_/UBloxCellular
+  provider_/ProxyingNetworkServiceProvider?
   tcp_connect_mutex_ ::= monitor.Mutex
 
-  constructor .name .cellular_:
+  constructor .name .cellular_ .provider_:
 
   address -> net.IpAddress:
     unreachable
@@ -645,7 +650,7 @@ class Interface_ extends CloseableNetwork implements net.Interface:
     res := cellular_.at_.do: it.set "+USOCR" [6]
     id := res.single[0]
 
-    socket := TcpSocket cellular_ id address
+    socket := TcpSocket cellular_ id address provider_
     cellular_.sockets_.update id --if_absent=(: socket): throw "socket already exists"
 
     if not cellular_.async_socket_connect: socket.state_.set_state CONNECTED_STATE_

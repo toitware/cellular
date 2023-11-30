@@ -6,6 +6,7 @@ import log
 import uart
 import net
 import monitor
+import system.base.network show ProxyingNetworkServiceProvider
 
 import .at as at
 import .cellular
@@ -270,7 +271,7 @@ abstract class CellularBase implements Cellular:
   abstract set_baud_rate_ session/at.Session baud_rate/int
 
   abstract network_name -> string
-  abstract network_interface -> net.Interface
+  abstract open-network --provider/ProxyingNetworkServiceProvider?=null -> net.Interface
 
   // Dummy implementations.
   power_on -> none:

@@ -166,7 +166,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       // the foreground and needs to have its proxied networks closed
       // correctly in order for the shutdown to be clean.
       containers.notify-background-state-changed false
-      return driver.network_interface
+      return driver.open-network --provider=this
     finally: | is_exception exception |
       if is_exception:
         critical_do: close_driver driver --error=exception.value

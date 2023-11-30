@@ -9,7 +9,7 @@ import log
 import monitor
 import uart
 
-import system.base.network show CloseableNetwork
+import system.base.network show CloseableNetwork ProxyingNetworkServiceProvider
 
 import ...base.at as at
 import ...base.base
@@ -490,7 +490,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
       set_up_psm_urc_handler_ session
     super
 
-  network_interface -> net.Interface:
+  open_network --provider/ProxyingNetworkServiceProvider?=null -> net.Interface:
     return Interface_ network_name this
 
   // Override disable_radio_, as the SIM cannot be accessed unless airplane mode is used.

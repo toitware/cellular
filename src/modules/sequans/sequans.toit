@@ -9,7 +9,7 @@ import log
 import monitor
 import uart
 
-import system.base.network show CloseableNetwork
+import system.base.network show CloseableNetwork ProxyingNetworkServiceProvider
 
 import ...base.at as at
 import ...base.base
@@ -444,7 +444,7 @@ abstract class SequansCellular extends CellularBase:
   set_baud_rate_ session/at.Session baud_rate/int:
     // NOP for Sequans devices.
 
-  network_interface -> net.Interface:
+  open_network --provider/ProxyingNetworkServiceProvider?=null -> net.Interface:
     return Interface_ network_name this
 
 class SequansConstants implements Constants:

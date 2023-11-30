@@ -4,6 +4,7 @@
 
 import log
 import net
+import system.base.network show ProxyingNetworkServiceProvider
 
 import .at as at
 import .location show GnssLocation
@@ -58,7 +59,7 @@ interface Cellular:
 
   get_connected_operator -> Operator?
 
-  network_interface -> net.Interface
+  open_network --provider/ProxyingNetworkServiceProvider?=null -> net.Interface
 
   detach -> none
 
