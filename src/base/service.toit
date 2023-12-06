@@ -94,7 +94,7 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     driver_mutex_.do:
       if driver_:
         driver_clients_++
-        driver_.logger.debug "increasing driver count to $driver_clients_"
+        driver_.logger.info "Increasing driver count to $driver_clients_"
         return
 
       // Before the driver is initialized, we change the state of the
@@ -112,7 +112,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         // by the caller of open, we'll get another shot at making
         // the modem communicate with us.
         if not driver: driver = open_driver_ logger
-        driver_clients_ = 1
         driver_ = driver
         is-created = true
       finally:
@@ -120,13 +119,17 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
           // We failed to create the driver, so mark the container free
           // to be stopped
           containers.notify-background-state-changed true
+        else:
+          driver_clients_ = 1
+          driver_.logger.info "Increasing driver count to $driver_clients_"
 
   close_driver --error/any=null:
-    driver_clients_--
-    if driver_clients_ == 0:
-      driver := driver_
-      driver_ = null
-      driver_mutex_.do:
+    driver_mutex_.do:
+      driver_clients_--
+      driver_.logger.info "Decreasing driver count to to $driver_clients_"
+      if driver_clients_ == 0:
+        driver := driver_
+        driver_ = null
         critical_do:
           try:
             close_driver_ driver --error=error
@@ -134,10 +137,6 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
             // After closing the driver, we change the state of the cellular
             // container to indicate that it is now running in the background.
             containers.notify-background-state-changed true
-    else:
-      log_level := error ? log.WARN_LEVEL : log.INFO_LEVEL
-      log_tags := error ? { "error": error } : null
-      driver_.logger.log log_level "decreasing driver count to to $driver_clients_" --tags=log_tags
 
   connect client/int config/Map? -> List:
     this.config.update-from-map_ config
@@ -148,8 +147,8 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
 
   open_network -> net.Interface:
     logger := log.Logger config.log-level log.DefaultTarget --name="cellular"
-
-    open_driver --logger=logger
+    logger.info "opening network"
+    open-driver --logger=logger
 
     try:
       with_timeout --ms=30_000:
@@ -169,6 +168,8 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         close_driver
 
   close_network network/net.Interface -> none:
+    logger := log.Logger config.log-level log.DefaultTarget --name="cellular"
+    logger.info "closing network"
     close_driver
 
   open_driver_ logger/log.Logger -> Cellular:
@@ -335,7 +336,7 @@ abstract class LocationServiceProvider extends CellularServiceProvider:
 
     logger := log.Logger config.log-level log.DefaultTarget --name="cellular"
 
-    open_driver --logger=logger
+    open-driver --logger=logger
 
     gnss := driver_ as Gnss
 
