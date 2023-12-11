@@ -97,10 +97,10 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       session.set "+SQNSCFG" [
         get_id_,
         cellular_.cid_,
-        300,  // Packet size, unused. Default value.
-        0,    // Idle timeout, disabled.
-        80,   // Connection timeout, 8s.
-        50,   // Data write timeout, 5s. Default value.
+        0,   // Automatically choose packet size for online mode (default).
+        0,   // Disable idle timeout.
+        80,  // Connection timeout, 8s.
+        50,  // Data write timeout for online mode, 5s (default).
       ]
 
       // Configure using default values. Without this, we sometimes see
