@@ -103,6 +103,17 @@ class TcpSocket extends Socket_ implements tcp.Socket:
         50,   // Data write timeout, 5s. Default value.
       ]
 
+      // Configure using default values. Without this, we sometimes see
+      // the modem fetching the configuration from NVRAM, which leads
+      // to errors when decoding SQNSRING messages if the contain
+      // unexpected binary data.
+      session.set "+SQNSCFGEXT" [
+        get_id_,
+        0,  // 0 = SQNSRING URC mode with no data (default).
+        0,  // 0 = Data represented as text or raw binary (default).
+        0,  // 0 = Keep-alive (0-240 seconds). Unused by modem.
+      ]
+
       result := session.send
         SQNSD.tcp get_id_ peer_address
       if result.code == "OK": state_.set_state CONNECTED_STATE_
