@@ -97,10 +97,21 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       session.set "+SQNSCFG" [
         get_id_,
         cellular_.cid_,
-        300,  // Packet size, unused. Default value.
-        0,    // Idle timeout, disabled.
-        80,   // Connection timeout, 8s.
-        50,   // Data write timeout, 5s. Default value.
+        0,   // Automatically choose packet size for online mode (default).
+        0,   // Disable idle timeout.
+        80,  // Connection timeout, 8s.
+        50,  // Data write timeout for online mode, 5s (default).
+      ]
+
+      // Configure using default values. Without this, we sometimes see
+      // the modem fetching the configuration from NVRAM, which leads
+      // to errors when decoding SQNSRING messages if they contain
+      // unexpected binary data.
+      session.set "+SQNSCFGEXT" [
+        get_id_,
+        0,  // 0 = SQNSRING URC mode with no data (default).
+        0,  // 0 = Data represented as text or raw binary (default).
+        0,  // 0 = Keep-alive (0-240 seconds). Unused by modem.
       ]
 
       result := session.send
