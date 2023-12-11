@@ -12,31 +12,26 @@ import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
 import ...base.service show CellularServiceProvider
+import ...config
 
-main:
+main --config/CellularConfiguration=CellularConfiguration:
   service := SaraR4Service
   service.install
 
 // --------------------------------------------------------------------------
 
 class SaraR4Service extends CellularServiceProvider:
-  constructor:
-    super "ublox/sara_r4" --major=0 --minor=1 --patch=0
+  constructor --config/CellularConfiguration:
+    super "ublox/sara_r4" --major=0 --minor=1 --patch=0 --config=config
 
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
-      --power/gpio.Pin?
-      --reset/gpio.Pin?
-      --baud_rates/List?:
+      --config/CellularConfiguration:
     return SaraR4 port logger
-        --pwr_on=power
-        --reset_n=reset
-        --uart_baud_rates=baud_rates or [460_800, cellular.Cellular.DEFAULT_BAUD_RATE]
+        --pwr_on=config.power
+        --reset_n=config.reset
+        --uart_baud_rates=config.uart-baud-rates or [460_800, cellular.Cellular.DEFAULT_BAUD_RATE]
         --is_always_online=true
 
 /**

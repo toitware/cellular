@@ -15,15 +15,16 @@ import ...base.at as at
 import ...base.base
 import ...base.cellular
 import ...base.exceptions
-import ...base.location show Location GnssLocation
+import ...location show Location GnssLocation
 
 CONNECTED_STATE_  ::= 1 << 0
 READ_STATE_       ::= 1 << 1
 CLOSE_STATE_      ::= 1 << 2
 
-TIMEOUT_QIOPEN ::= Duration --s=150
-TIMEOUT_QIRD   ::= Duration --s=5
-TIMEOUT_QISEND ::= Duration --s=5
+TIMEOUT_QIOPEN     ::= Duration --s=150
+TIMEOUT_QIRD       ::= Duration --s=15
+TIMEOUT_QISEND     ::= Duration --s=15
+TIMEOUT_CLOSE_WAIT ::= Duration --s=30
 
 monitor SocketState_:
   state_/int := 0
@@ -45,11 +46,15 @@ monitor SocketState_:
     if not dirty_:
       state_ &= ~state
 
-class Socket_:
+
+
+abstract class Socket_:
   static ERROR_OK_                        ::= 0
   static ERROR_MEMORY_ALLOCATION_FAILED_  ::= 553
   static ERROR_OPERATION_BUSY_            ::= 568
   static ERROR_OPERATION_NOT_ALLOWED_     ::= 572
+
+  static SOCKET_CLOSED_                   ::= "SOCKET_CLOSED"
 
   state_ ::= SocketState_
   should_pdp_deact_ := false
@@ -63,11 +68,26 @@ class Socket_:
   pdp_deact_:
     should_pdp_deact_ = true
 
+  /**
+  Closed from remote
+  */
+  close-wait:
+    closed_
+    id := id_
+    id_ = null // Drop the instance reference here to allow for socket closed exceptions.
+    task --background ::
+      sleep TIMEOUT_CLOSE_WAIT
+      socket_call:
+        it.set "+QICLOSE" [id, 0]
+      cellular_.sockets_.remove id
+
   closed_:
     state_.set_state CLOSE_STATE_
 
+  abstract close
+
   get_id_:
-    if not id_: throw "socket is closed"
+    if not id_: throw SOCKET-CLOSED_
     return id_
 
   /**
@@ -86,8 +106,10 @@ class Socket_:
   Returns the latest socket error (even if OK).
   */
   last_error_ cellular/at.Session original_error/string="" -> Exception:
+    if original_error == SOCKET-CLOSED_:
+      catch --trace: throw original-error
+      throw (UnavailableException original_error)
     res := cellular.action "+QIGETERROR"
-    print_ "Error $original_error -> $res.last"
     error := res.last[0]
     error_message := res.last[1]
     if error == ERROR_OK_:
@@ -118,6 +140,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
   constructor cellular id .peer_address:
     super cellular id
 
+  initiate_connection_:
     socket_call:
       it.set "+QIOPEN" --timeout=TIMEOUT_QIOPEN [
         cellular_.cid_,
@@ -143,9 +166,12 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       if state & CLOSE_STATE_ != 0:
         return null
       else if state & READ_STATE_ != 0:
-        r := socket_call: it.set "+QIRD" --timeout=TIMEOUT_QIRD [get_id_, 1500]
+        r/at.Result := socket_call: | session/at.Session |
+          session.set "+QIRD" --timeout=TIMEOUT_QIRD [get_id_, 1500]
         out := r.single
-        if out[0] > 0: return out[1]
+        if out[0] > 0:
+          //cellular_.logger.debug "<- <$(out[1].size) bytes>"
+          return out[1]
         state_.clear READ_STATE_
       else:
         throw "SOCKET ERROR"
@@ -157,12 +183,12 @@ class TcpSocket extends Socket_ implements tcp.Socket:
     data = data[from..to]
 
     e := catch --unwind=(: it is not UnavailableException):
+      // Give processing time to other tasks, to avoid busy write-loop that starves readings.
+      yield
       socket_call:
         it.set "+QISEND" [get_id_, data.size]
             --timeout=TIMEOUT_QISEND
             --data=data
-      // Give processing time to other tasks, to avoid busy write-loop that starves readings.
-      yield
       return data.size
 
     // Buffer full, wait for buffer to be drained.
@@ -191,14 +217,16 @@ class TcpSocket extends Socket_ implements tcp.Socket:
         cellular_.sockets_.remove id
 
   mtu -> int:
-    return 1500
+    // From spec, +QISEND only allows sending 1460 bytes at a time.
+    return 1460
 
 class UdpSocket extends Socket_ implements udp.Socket:
   remote_address_ := null
 
-  constructor cellular/QuectelCellular id/int port/int:
+  constructor cellular/QuectelCellular id/int:
     super cellular id
 
+  initiate-connection_ port/int:
     socket_call:
       it.set "+QIOPEN" --timeout=TIMEOUT_QIOPEN [
         cellular_.cid_,
@@ -302,17 +330,21 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 
     at_session.register_urc "+QIOPEN":: | args |
       sockets_.get args[0]
-        --if_present=: | socket |
+        --if_present=: | socket/Socket_ |
           if args[1] == 0:
             // Success.
             if socket.error_ == 0:
               socket.state_.set_state CONNECTED_STATE_
             else:
               // The connection was aborted.
-              socket.close
+              logger.warn "Socket has errors ($socket.error_), closing"
+              socket.close-wait
           else:
+            // Failure
+            logger.warn "Open failed with error $args[1]"
             socket.error_ = args[1]
-            socket.closed_
+            socket.close-wait
+        --if-absent=: logger.warn "Socket $args[0] not found"
 
     at_session.register_urc "+QIURC"::
       if it[0] == "dnsgip":
@@ -325,10 +357,11 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
           --if_present=: it.state_.set_state READ_STATE_
       else if it[0] == "closed":
         sockets_.get it[1]
-          --if_present=: it.closed_
+          --if_present=: | socket/Socket_ |
+            socket.close-wait
       else if it[0] == "pdpdeact":
         sockets_.get it[1]
-          --if_present=:
+          --if_present=: | socket/Socket_ |
             it.pdp_deact_
             it.closed_
 
@@ -350,6 +383,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
         [0]
       else:
         reader.skip 1  // Skip '\n'.
+        session.logger_.debug "<- +QIRD $parts"
         parts.add (reader.read_bytes parts[0])
         parts
 
@@ -371,7 +405,8 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 
   close:
     try:
-      sockets_.values.do: it.closed_
+      sockets_.values.do: | socket/Socket_ |
+        socket.close
       2.repeat: | attempt/int |
         catch: with_timeout --ms=1_500: at_.do: | session/at.Session |
           if not session.is_closed:
@@ -442,6 +477,8 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
         // Enable URC on uart1.
         session.set "+QURCCFG" ["urcport", "uart1"]
         session.set "+CTZU" [1]
+
+        session.set "+IFC" [0, 0]
 
         if bands:
           mask := 0
@@ -517,6 +554,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     sleep --ms=100
 
   gnss_start:
+    at_.do: gnss_eval_ it
     gnss_users_++
     at_.do: gnss_eval_ it
 
@@ -548,7 +586,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
     if not state: return
     if gnss_users_ > 0:
       if state != 1:
-        session.set "+QGPS" [1]
+        session.set "+QGPS" [1, 255]
     else if state != 0:
       session.action "+QGPSEND"
 
@@ -603,8 +641,12 @@ class Interface_ extends CloseableNetwork implements net.Interface:
     if not port or port == 0:
       // Best effort for rolling a free port.
       port = FREE_PORT_RANGE + free_port_++ % FREE_PORT_RANGE
-    socket := UdpSocket cellular_ id port
+    socket := UdpSocket cellular_ id
     cellular_.sockets_.update id --if_absent=(: socket): throw "socket already exists"
+
+    socket.initiate_connection_ port // Moved the initiation of the socket to after the id is added to the sockets.
+                                     // Previously, the modem could respond before the id was added to the sockets,
+
     return socket
 
   tcp_connect host/string port/int -> tcp.Socket:
@@ -616,6 +658,9 @@ class Interface_ extends CloseableNetwork implements net.Interface:
     id := socket_id_
     socket := TcpSocket cellular_ id address
     cellular_.sockets_.update id --if_absent=(: socket): throw "socket already exists"
+
+    socket.initiate_connection_ // Moved the initiation of the socket to after the id is added to the sockets.
+                                // Previously, the modem could respond before the id was added to the sockets,
 
     catch --unwind=(: socket.error_ = 1; true): socket.connect_
 
@@ -675,3 +720,7 @@ class QICFG extends at.Command:
   constructor.keepalive --enable/bool --idle_time/int=1 --interval_time/int=30 --probe_count=3:
     ps := enable ? ["tcp/keepalive", 1, idle_time, interval_time, probe_count] : ["tcp/keepalive", 0]
     super.set "+QICFG" --parameters=ps
+
+class QNWINFO extends at.Command:
+  constructor:
+    super.action "+QNWINFO"

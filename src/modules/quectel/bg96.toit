@@ -11,32 +11,27 @@ import .quectel
 import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
-import ...base.service show CellularServiceProvider
+import ...base.service show LocationServiceProvider
+import ...config
 
-main:
-  service := BG96Service
+main --config/CellularConfiguration=CellularConfiguration:
+  service := BG96Service --config=config
   service.install
 
 // --------------------------------------------------------------------------
 
-class BG96Service extends CellularServiceProvider:
-  constructor:
-    super "quectel/bg96" --major=0 --minor=1 --patch=0
+class BG96Service extends LocationServiceProvider:
+  constructor --config/CellularConfiguration:
+    super "quectel/bg96" --major=0 --minor=1 --patch=0 --config=config
 
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
-      --power/gpio.Pin?
-      --reset/gpio.Pin?
-      --baud_rates/List?:
+      --config/CellularConfiguration:
     return BG96 port logger
-        --pwrkey=power
-        --rstkey=reset
-        --baud_rates=baud_rates
+        --pwrkey=config.power
+        --rstkey=config.reset
+        --baud_rates=config.uart-baud-rates
         --is_always_online=true
 
 /**
@@ -57,6 +52,7 @@ class BG96 extends QuectelCellular:
 
   on_connected_ session/at.Session:
     // Attach to network.
+    session.send (QNWINFO)
     session.set "+QICSGP" [cid_]
     session.send (QIACT cid_)
 
