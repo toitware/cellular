@@ -105,7 +105,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
 
       // Configure using default values. Without this, we sometimes see
       // the modem fetching the configuration from NVRAM, which leads
-      // to errors when decoding SQNSRING messages if the contain
+      // to errors when decoding SQNSRING messages if they contain
       // unexpected binary data.
       session.set "+SQNSCFGEXT" [
         get_id_,
