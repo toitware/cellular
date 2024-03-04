@@ -427,7 +427,7 @@ abstract class UBloxCellular extends CellularBase:
     if mno >= 100 and current_mno == MNO_GLOBAL: return false
     return current_mno != mno
 
-  configure apn/string --mno/int=100 --bands=null --rats=null:
+  configure apn/string --mno/int=90 --bands=null --rats=null:
     at_.do: | session/at.Session |
       while true:
         should_reboot/bool := false
@@ -445,16 +445,42 @@ abstract class UBloxCellular extends CellularBase:
           set_rat_ session rat
           should_reboot = true
 
+        // If bands are not fixed and MNO profile is set to 
+        // 0 (regulatory) or 90 (global), then all bands 
+        // supported by the module should be enabled by default. 
+        // Different module version support different bands
+        // (eg. -00B versions don't support bands 66, 71 and 
+        // 85), so we query the module for supported bands 
+        // and set these. This check prevents situations, where
+        // bands can stuck in an undesired state.
+        masks := null
+        if not bands:
+          if mno==0 or mno==90:
+            result := session.test "+UBANDMASK"
+            supported_masks := result.single
+
+            // The first entry is a list of supported RATs, so we skip it here.
+            masks = supported_masks[1..3]
+
+          else if mno == 100:
+            bands = [3, 8, 20]
+            
         if bands:
-          mask := 0
-          bands.do: mask |= 1 << (it - 1)
-          if not is_band_mask_set_ session mask:
+          masks = [0, 0]
+          bands.do: 
+            if it<65:
+              masks[0] |= 1 << (it - 1)
+            else:
+              masks[1] |= 1 << (it - 65)
+
+        if masks:
+          if not is_band_mask_set_ session masks:
             // We are already in offline mode (CFUN=0), so
             // we must not reboot in this case. We've seen
             // situations where the modem somehow resets the
             // band mask on reboot causing us to spin around
             // in a config loop.
-            set_band_mask_ session mask
+            set_band_mask_ session masks
 
         if (get_apn_ session) != apn:
           // We are already in offline mode (CFUN=0), so
@@ -550,18 +576,28 @@ abstract class UBloxCellular extends CellularBase:
   set_mno_ session/at.Session mno:
     session.set "+UMNOPROF" [mno]
 
-  is_band_mask_set_ session/at.Session mask/int:
+  is_band_mask_set_ session/at.Session masks/List:
     result := session.read "+UBANDMASK"
     values := result.single
-    // There may be multiple masks, validate all.
-    for i := 1; i < values.size; i+=2:
-      if values[i] != mask: return false
+
+    // There may be multiple masks, so we validate all.
+    // AT+UBANDMASK? returns a list of the currently configured
+    // band masks for each RAT. Every 3rd entry is an indication
+    // of the RAT, while the others are the associated band masks
+    // like so: [RAT1, mask1_for_RAT1, mask2_for_RAT1, RAT2, 
+    // mask1_for_RAT2, mask2_for_RAT2]. Here we check only the
+    // masks and assume they should be the same for all RATs.
+    for i := 0; i < values.size; i+=1:
+      j := i%3
+      if (j == 0): continue
+      if values[i] != masks[j - 1]:
+        return false
     return true
 
-  set_band_mask_ session/at.Session mask:
+  set_band_mask_ session/at.Session masks:
     // Set mask for both m1 and nbiot.
-    if cat_m1: session.set "+UBANDMASK" [0, mask]
-    if cat_nb1: session.set "+UBANDMASK" [1, mask]
+    if cat_m1: session.set "+UBANDMASK" [0, masks[0], masks[1]]
+    if cat_nb1: session.set "+UBANDMASK" [1, masks[0], masks[1]]
 
   get_rat_ session/at.Session -> List:
     result := session.read "+URAT"
