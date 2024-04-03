@@ -2,6 +2,7 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
+import io
 import net
 import net.udp as udp
 import net.tcp as tcp
@@ -61,7 +62,7 @@ class Socket_:
     if not id_: throw "socket is closed"
     return id_
 
-class TcpSocket extends Socket_ implements tcp.Socket:
+class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin implements tcp.Socket:
   static OPTION_TCP_NO_DELAY_   ::= 1
   static OPTION_TCP_KEEP_ALIVE_ ::= 2
   static CTRL_TCP_OUTGOING_ ::= 11
@@ -74,10 +75,6 @@ class TcpSocket extends Socket_ implements tcp.Socket:
 
   constructor cellular/UBloxCellular id/int .peer_address:
     super cellular id
-
-  // TODO(kasper): Deprecated. Remove.
-  set_no_delay value/bool:
-    no_delay = value
 
   no_delay -> bool:
     // TODO(kasper): Implement this.
@@ -98,7 +95,13 @@ class TcpSocket extends Socket_ implements tcp.Socket:
     if state & CONNECTED_STATE_ != 0: return
     throw "CONNECT_FAILED: $error_"
 
+  /**
+  Deprecated. Use ($in).read instead.
+  */
   read -> ByteArray?:
+    return in.read
+
+  read_ -> ByteArray?:
     while true:
       state := cellular_.wait_for_urc_: state_.wait_for READ_STATE_
       if state & CLOSE_STATE_ != 0:
@@ -111,14 +114,20 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       else:
         throw "SOCKET ERROR"
 
+  /**
+  Deprecated. Use ($out).write or ($out).try-write instead.
+  */
   write data from/int=0 to/int=data.size -> int:
+    return out.try-write data from to
+
+  try-write_ data/io.Data from/int=0 to/int=data.byte-size -> int:
     if to - from > MAX_SIZE_: to = from + MAX_SIZE_
-    data = data[from..to]
+    data = data.byte-slice from to
 
     // There is no safe way to detect how much data was sent, if an EAGAIN (buffer full)
     // was encountered. Instead query how much date is buffered, so we never hit it.
     buffered := (cellular_.at_.do: it.set "+USOCTL" [get_id_, CTRL_TCP_OUTGOING_]).single[2]
-    if buffered + data.size > MAX_BUFFERED_:
+    if buffered + data.byte-size > MAX_BUFFERED_:
       // The buffer is full. Note that it can only drain at ~3.2 kbyte/s.
       sleep --ms=100
       // Update outgoing.
@@ -126,7 +135,7 @@ class TcpSocket extends Socket_ implements tcp.Socket:
 
     cellular_.at_.do: | session/at.Session |
       try:
-        session.set "+USOWR" [get_id_, data.size] --data=data
+        session.set "+USOWR" [get_id_, data.byte-size] --data=data
       finally: | is_exception _ |
         // If we get an exception while writing, we risk leaving the
         // modem in an awful state. Close the session to force us to
@@ -138,10 +147,20 @@ class TcpSocket extends Socket_ implements tcp.Socket:
           cellular_.power_off
     // Give processing time to other tasks, to avoid busy write-loop that starves readings.
     yield
-    return data.size
+    return data.byte-size
 
-  // Close the socket for write. The socket will still be able to read incoming data.
+  close-reader_:
+    // TODO(florian): is this the right way to close the reader?
+    // Do nothing.
+
+  /**
+  Closes the socket for write. The socket will still be able to read incoming data.
+  Deprecated. Use ($out).close instead.
+  */
   close_write:
+    throw "UNSUPPORTED"
+
+  close-writer_:
     throw "UNSUPPORTED"
 
   // Immediately close the socket and release any resources associated.
@@ -176,9 +195,9 @@ class UdpSocket extends Socket_ implements udp.Socket:
   connect address/net.SocketAddress:
     remote_address_ = address
 
-  write data/ByteArray from=0 to=data.size -> int:
+  write data/io.Data from/int=0 to/int=data.byte-size -> int:
     if not remote_address_: throw "NOT_CONNECTED"
-    if from != 0 or to != data.size: data = data.copy from to
+    if from != 0 or to != data.byte-size: data = data.byte-slice from to
     return send_ remote_address_ data
 
   read -> ByteArray?:
@@ -189,9 +208,9 @@ class UdpSocket extends Socket_ implements udp.Socket:
   send datagram/udp.Datagram -> int:
     return send_ datagram.address datagram.data
 
-  send_ address data -> int:
-    if data.size > mtu: throw "PAYLOAD_TO_LARGE"
-    res := cellular_.at_.do: it.set "+USOST" [get_id_, address.ip.stringify, address.port, data.size] --data=data
+  send_ address data/io.Data -> int:
+    if data.byte-size > mtu: throw "PAYLOAD_TO_LARGE"
+    res := cellular_.at_.do: it.set "+USOST" [get_id_, address.ip.stringify, address.port, data.byte-size] --data=data
     return res.single[1]
 
   receive -> udp.Datagram?:
@@ -317,55 +336,55 @@ abstract class UBloxCellular extends CellularBase:
     at.add_error_termination "+CME ERROR"
     at.add_error_termination "+CMS ERROR"
 
-    at.add_response_parser "+USORF" :: | reader |
+    at.add_response_parser "+USORF" :: | reader/io.Reader |
       id := int.parse
-          reader.read_until ','
-      if (reader.byte 0) == '"':
+          reader.read-string-up-to ','
+      if (reader.peek-byte 0) == '"':
         // Data response.
         reader.skip 1
-        ip := reader.read_until '"'
+        ip := reader.read-string-up-to '"'
         reader.skip 1
         port := int.parse
-            reader.read_until ','
+            reader.read-string-up-to ','
         length := int.parse
-            reader.read_until ','
+            reader.read-string-up-to ','
         reader.skip 1  // Skip "
         data := reader.read_bytes length
-        reader.read_bytes_until at.s3
+        reader.read-bytes-up-to at.s3
         [id, length, ip, port, data]  // Return value.
       else:
         // Length-only response.
         length := int.parse
-            reader.read_until at.s3
+            reader.read-string-up-to at.s3
         [id, length]  // Return value.
 
-    at.add_response_parser "+USORD" :: | reader |
+    at.add_response_parser "+USORD" :: | reader/io.Reader |
       id := int.parse
-          reader.read_until ','
-      if (reader.byte 0) == '"':
+          reader.read-string-up-to ','
+      if (reader.peek-byte 0) == '"':
         // 0-length response.
-        reader.read_bytes_until at.s3
+        reader.read-bytes-up-to at.s3
         [id, 0]  // Return value.
       else:
         // Data response.
         length := int.parse
-            reader.read_until ','
+            reader.read-string-up-to ','
         reader.skip 1  // Skip "
         data := reader.read_bytes length
-        reader.read_bytes_until at.s3
+        reader.read-bytes-up-to at.s3
         [id, data.size, data]  // Return value.
 
     // Custom parsing as ICCID is returned as integer but larger than 64bit.
-    at.add_response_parser "+CCID" :: | reader |
-      iccid := reader.read_until at.s3
+    at.add_response_parser "+CCID" :: | reader/io.Reader |
+      iccid := reader.read-string-up-to at.s3
       [iccid]  // Return value.
 
-    at.add_response_parser "+UFWUPD" :: | reader |
-      state := reader.read_until at.s3
+    at.add_response_parser "+UFWUPD" :: | reader/io.Reader |
+      state := reader.read-string-up-to at.s3
       [state]  // Return value.
 
-    at.add_response_parser "+UFWSTATUS" :: | reader |
-      status := reader.read_until at.s3
+    at.add_response_parser "+UFWSTATUS" :: | reader/io.Reader |
+      status := reader.read-string-up-to at.s3
       (status.split ",").map --in_place: it.trim  // Return value.
 
     return at
