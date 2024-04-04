@@ -2,9 +2,7 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
-import reader
-import writer
-import bytes
+import io
 import log
 
 CLOSED_ERROR_ ::= "AT_SESSION_CLOSED"
@@ -50,25 +48,24 @@ class Command:
     type = RAW_
     data = s3_data
 
-  write_parameters writer:
+  write_parameters buffer/io.Writer:
     first := true
     parameters.do:
       if first: first = false
-      else: writer.write COMMA_
+      else: buffer.write COMMA_
       if it == null:
         // Don't write anything for nulls.
       else if it is string:
-        writer.write DOUBLE_QUOTE_
-        writer.write it
-        writer.write DOUBLE_QUOTE_
+        buffer.write DOUBLE_QUOTE_
+        buffer.write it
+        buffer.write DOUBLE_QUOTE_
       else:
-        writer.write it.stringify
+        buffer.write it.stringify
 
   stringify -> string:
     if type == RAW_: return "raw[$name]$(data ? "+s3" : "")"
-    buffer := bytes.Buffer
-    write_parameters
-      writer.Writer buffer
+    buffer := io.Buffer
+    write_parameters buffer
     return "AT$name$type$buffer.bytes.to_string_non_throwing"
 
 /**
@@ -135,8 +132,8 @@ class Session:
   command_delay/Duration
   data_delay/Duration?
 
-  reader_/reader.BufferedReader
-  writer_/writer.Writer
+  reader_/io.Reader
+  writer_/io.Writer
   logger_/log.Logger
 
   processor_/Processer_ ::= Processer_
@@ -155,7 +152,7 @@ class Session:
   task_ := null
   error_/string? := null
 
-  constructor r/reader.Reader w
+  constructor .reader_ .writer_
       --logger
       --.s3=CR
       --.data_marker='@'
@@ -163,8 +160,6 @@ class Session:
       --.data_delay=null:
     s3_data_ = #[CR]
     logger_ = logger
-    reader_ = reader.BufferedReader r
-    writer_ = writer.Writer w
 
     task_ = task::
       error := catch --trace=(: it != EOF):
@@ -202,7 +197,7 @@ class Session:
   /**
   Adds a custom response parser for the given $command name.
 
-  The lambda is called with one argument, a $reader.BufferedReader.
+  The lambda is called with one argument, an $io.Reader.
   */
   add_response_parser command/string lambda/Lambda:
     response_parsers_.update command --if_absent=(: lambda): throw "parser already registered: $command"
@@ -374,7 +369,7 @@ class Session:
 
   run_:
     while true:
-      c := reader_.byte 0
+      c := reader_.peek-byte 0
       if c == '+':
         read_formatted_
       else if c == data_marker:
@@ -390,14 +385,7 @@ class Session:
         logger_.with_level log.DEBUG_LEVEL: it.debug "<- $(%c data_marker) *no data*"
       else if c >= 32:
         if not command_:
-          // Read bytes until the defined s3 character and ensure that
-          // the buffer size does not accumulate over time to prevent
-          // memory exhaustion. TODO: A BufferedReader.skip-until would 
-          // be useful here.
-          while true:
-            discard := reader_.byte 0
-            reader_.skip 1
-            if discard == s3: break
+          reader_.skip-up-to s3
         else:
           read_plain_
       else:
@@ -415,7 +403,7 @@ class Session:
       dispatch_urc_ cmd []
       return
 
-    cmd_bytes := reader_.bytes cmd_end
+    cmd_bytes := reader_.peek-bytes cmd_end
     if is_terminating_ cmd_bytes:
       line := reader_.read_string line_end
       reader_.skip 1  // Skip s3.
@@ -425,7 +413,7 @@ class Session:
 
     cmd := cmd_bytes.to_string
     cmd_end++
-    if (reader_.byte cmd_end) == ' ': cmd_end++
+    if (reader_.peek-byte cmd_end) == ' ': cmd_end++
     reader_.skip cmd_end
 
     parsed := response_parsers_.get cmd
@@ -444,7 +432,7 @@ class Session:
       dispatch_urc_ cmd parsed
 
   read_plain_:
-    line := reader_.read_bytes_until s3
+    line := reader_.read-bytes-up-to s3
     if line.size == 0: return
     logger_.with_level log.DEBUG_LEVEL: it.debug "<- $line.to_string_non_throwing"
     if is_echo_ line: return

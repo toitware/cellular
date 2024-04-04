@@ -2,6 +2,7 @@
 // Use of this source code is governed by an MIT-style license that can be
 // found in the LICENSE file.
 
+import io
 import net
 import net.udp as udp
 import net.tcp as tcp
@@ -71,15 +72,11 @@ class Socket_:
   last_error_ cellular/at.Session original_error/string="":
     throw (UnknownException "SOCKET ERROR $original_error")
 
-class TcpSocket extends Socket_ implements tcp.Socket:
+class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin implements tcp.Socket:
   static MAX_SIZE_ ::= 1500
   static WRITE_TIMEOUT_ ::= Duration --s=5
 
   peer_address/net.SocketAddress ::= ?
-
-  // TODO(kasper): Deprecated. Remove.
-  set_no_delay value/bool:
-    no_delay = value
 
   no_delay -> bool:
     // TODO(kasper): Implement this.
@@ -128,7 +125,13 @@ class TcpSocket extends Socket_ implements tcp.Socket:
     if state & CONNECTED_STATE_ != 0: return
     throw "CONNECT_FAILED: $error_"
 
+  /**
+  Deprecated. Use ($in).read instead.
+  */
   read -> ByteArray?:
+    return in.read
+
+  read_ -> ByteArray?:
     while true:
       state := cellular_.wait_for_urc_: state_.wait_for READ_STATE_
       if state & CLOSE_STATE_ != 0:
@@ -144,18 +147,24 @@ class TcpSocket extends Socket_ implements tcp.Socket:
       else:
         throw "SOCKET ERROR"
 
+  /**
+  Deprecated. Use ($out).write or ($out).try-write instead.
+  */
   write data from/int=0 to/int=data.size -> int:
+    return out.try-write data from to
+
+  try-write_ data/io.Data from/int=0 to/int=data.byte-size -> int:
     if to - from > MAX_SIZE_:
       to = from + MAX_SIZE_
 
-    data = data[from..to]
+    data = data.byte-slice from to
 
     e := catch --unwind=(: it is not UnavailableException):
       socket_call:
         // Create a custom command, so we can experiment with the timeout.
         command ::= at.Command.set
             "+SQNSSENDEXT"
-            --parameters=[get_id_, data.size]
+            --parameters=[get_id_, data.byte-size]
             --data=data
             --timeout=WRITE_TIMEOUT_
         start ::= Time.monotonic_us
@@ -165,16 +174,24 @@ class TcpSocket extends Socket_ implements tcp.Socket:
           cellular_.logger.warn "slow tcp write" --tags={"time": "$(elapsed / 1_000) ms"}
       // Give processing time to other tasks, to avoid busy write-loop that starves readings.
       yield
-      return data.size
+      return data.byte-size
 
     // Buffer full, wait for buffer to be drained.
     sleep --ms=100
     return 0
 
+  close-reader_:
+    // TODO(florian): is this the right way to close the reader?
+    // Do nothing.
+
   /**
   Closes the socket for write. The socket is still be able to read incoming data.
+  Deprecated. Use ($out).close instead.
   */
   close_write:
+    out.close
+
+  close-writer_:
     throw "UNSUPPORTED"
 
   // Immediately close the socket and release any resources associated.
@@ -210,9 +227,9 @@ class UdpSocket extends Socket_ implements udp.Socket:
       session.send
         SQNSD.udp get_id_ port_ remote_address_
 
-  write data/ByteArray from=0 to=data.size -> int:
+  write data/io.Data from/int=0 to/int=data.byte-size -> int:
     if not remote_address_: throw "NOT_CONNECTED"
-    if from != 0 or to != data.size: data = data[from..to]
+    if from != 0 or to != data.byte-size: data = data.byte-slice from to
     return send_ remote_address_ data
 
   read -> ByteArray?:
@@ -223,10 +240,10 @@ class UdpSocket extends Socket_ implements udp.Socket:
   send datagram/udp.Datagram -> int:
     return send_ datagram.address datagram.data
 
-  send_ address data -> int:
-    if data.size > mtu: throw "PAYLOAD_TO_LARGE"
-    res := socket_call: it.set "+SQNSSENDEXT" [get_id_, data.size] --data=data
-    return data.size
+  send_ address data/io.Data -> int:
+    if data.byte-size > mtu: throw "PAYLOAD_TO_LARGE"
+    res := socket_call: it.set "+SQNSSENDEXT" [get_id_, data.byte-size] --data=data
+    return data.byte-size
 
   receive -> udp.Datagram?:
     while true:
@@ -298,10 +315,10 @@ abstract class SequansCellular extends CellularBase:
     at_session_.register_urc "+SQNSSHDN"::
       closed_.set null
 
-  static configure_at_ uart logger -> at.Session:
+  static configure_at_ uart/uart.Port logger/log.Logger -> at.Session:
     session := at.Session
-      uart
-      uart
+      uart.in
+      uart.out
       --logger=logger
       --data_marker='>'
       --command_delay=Duration --ms=20
@@ -311,8 +328,8 @@ abstract class SequansCellular extends CellularBase:
     session.add_error_termination "+CMS ERROR"
     session.add_error_termination "NO CARRIER"
 
-    session.add_response_parser "+SQNSRECV" :: | reader |
-      line := reader.read_bytes_until '\r'
+    session.add_response_parser "+SQNSRECV" :: | reader/io.Reader |
+      line := reader.read-bytes-up-to '\r'
       parts := at.parse_response line
       if parts[1] == 0:
         [0]
@@ -320,12 +337,12 @@ abstract class SequansCellular extends CellularBase:
         reader.skip 1  // Skip '\n'.
         [parts[1], reader.read_bytes parts[1]]
 
-    session.add_response_parser "+SQNBANDSEL" :: | reader |
-      line := reader.read_bytes_until session.s3
+    session.add_response_parser "+SQNBANDSEL" :: | reader/io.Reader |
+      line := reader.read-bytes-up-to session.s3
       at.parse_response line --plain
 
-    session.add_response_parser "+SQNDNSLKUP" :: | reader |
-      line := reader.read_bytes_until session.s3
+    session.add_response_parser "+SQNDNSLKUP" :: | reader/io.Reader |
+      line := reader.read-bytes-up-to session.s3
       at.parse_response line --plain
 
     return session

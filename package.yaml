@@ -1,4 +1,4 @@
 name: cellular
 description: Cellular drivers for a selection of modems.
 environment:
-  sdk: ^2.0.0-alpha.108
+  sdk: ^2.0.0-alpha.144

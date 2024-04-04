@@ -6,7 +6,7 @@
 Implementation of the XMODEM-1K file transfer protocol.
 */
 
-import writer
+import io
 import uart
 import crypto.checksum
 import crypto.crc
@@ -22,11 +22,9 @@ class Writer:
   static NAK_/int ::= 0x15
 
   uart_/uart.Port
-  writer_/writer.Writer
   buffer_ ::= Buffer
 
   constructor .uart_:
-    writer_ = writer.Writer uart_
     wait_for_ready_
 
   write data:
@@ -37,9 +35,11 @@ class Writer:
     write_package_ buffer_.eot
 
   write_package_ data/ByteArray:
+    writer := uart_.out
+    reader := uart_.in
     MAX_RETRY_.repeat:
-      writer_.write data
-      r := uart_.read
+      writer.write data
+      r := reader.read
       if r.size != 1: throw "INVALID XMODEL RESPONSE: $r"
       if r[0] == ACK_: return
       if r[0] != NAK_: throw "INVALID XMODEL RESPONSE: $r"
@@ -49,7 +49,7 @@ class Writer:
     throw "ERROR AFTER $MAX_RETRY_ RETRIES"
 
   wait_for_ready_:
-    r := uart_.read
+    r := uart_.in.read
     if r.size == 1 and r[0] == 'C': return
     throw "INVALID XMODEL INIT: $r"
 
