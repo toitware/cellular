@@ -179,7 +179,6 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     return 0
 
   close-reader_:
-    // TODO(florian): is this the right thing to do?
     // Do nothing.
 
   /**
@@ -189,7 +188,7 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     throw "UNSUPPORTED"
 
   close-writer_:
-    throw "UNSUPPORTED"
+    // Do nothing.
 
   // Immediately close the socket and release any resources associated.
   close:
