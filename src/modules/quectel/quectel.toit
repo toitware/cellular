@@ -179,17 +179,17 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     return 0
 
   close-reader_:
-    // TODO(florian): is this the right thing to do?
     // Do nothing.
 
   /**
   Closes the socket for write. The socket is still be able to read incoming data.
+  Deprecated. Call ($out).close instead.
   */
   close_write:
-    throw "UNSUPPORTED"
+    out.close
 
   close-writer_:
-    throw "UNSUPPORTED"
+    // Do nothing.
 
   // Immediately close the socket and release any resources associated.
   close:

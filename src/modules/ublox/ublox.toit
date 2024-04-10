@@ -158,10 +158,10 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
   Deprecated. Use ($out).close instead.
   */
   close_write:
-    throw "UNSUPPORTED"
+    out.close
 
   close-writer_:
-    throw "UNSUPPORTED"
+    // Do nothing.
 
   // Immediately close the socket and release any resources associated.
   close:
