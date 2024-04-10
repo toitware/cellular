@@ -316,9 +316,7 @@ abstract class SequansCellular extends CellularBase:
       closed_.set null
 
   static configure_at_ uart/uart.Port logger/log.Logger -> at.Session:
-    session := at.Session
-      uart.in
-      uart.out
+    session := at.Session uart.in uart.out
       --logger=logger
       --data_marker='>'
       --command_delay=Duration --ms=20
