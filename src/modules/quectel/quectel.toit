@@ -183,9 +183,10 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
 
   /**
   Closes the socket for write. The socket is still be able to read incoming data.
+  Deprecated. Call ($out).close instead.
   */
   close_write:
-    throw "UNSUPPORTED"
+    out.close
 
   close-writer_:
     // Do nothing.
