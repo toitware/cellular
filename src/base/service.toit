@@ -225,18 +225,17 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --cts=cts_
         --rts=rts_
 
-    driver := create_driver
-        --logger=logger
-        --port=port
-        --rx=rx_
-        --tx=tx_
-        --rts=rts_
-        --cts=cts_
-        --power=power_pin_
-        --reset=reset_pin_
-        --baud_rates=uart_baud_rates
-
     try:
+      driver := create_driver
+          --logger=logger
+          --port=port
+          --rx=rx_
+          --tx=tx_
+          --rts=rts_
+          --cts=cts_
+          --power=power_pin_
+          --reset=reset_pin_
+          --baud_rates=uart_baud_rates
       if reset == CELLULAR_RESET_SOFT:
         driver.reset
         sleep --ms=1_000
