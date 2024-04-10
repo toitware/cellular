@@ -327,8 +327,8 @@ abstract class UBloxCellular extends CellularBase:
             socket.error_ = args[1]
             socket.closed_
 
-  static configure_at_ uart logger:
-    at := at.Session uart uart
+  static configure_at_ uart/uart.Port logger/log.Logger -> at.Session:
+    at := at.Session uart.in uart.out
       --logger=logger
       --data_delay=Duration --ms=50
       --command_delay=Duration --ms=20
