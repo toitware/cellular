@@ -154,9 +154,10 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     return out.try-write data from to
 
   try-write_ data/io.Data from/int=0 to/int=data.byte-size -> int:
-    if to - from > MAX_SIZE_:
+    if to == from:
+      return 0
+    else if to - from > MAX_SIZE_:
       to = from + MAX_SIZE_
-
     data = data.byte-slice from to
 
     e := catch --unwind=(: it is not UnavailableException):
