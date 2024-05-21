@@ -12,6 +12,7 @@ import ...base.at as at
 import ...base.base as cellular
 import ...base.cellular as cellular
 import ...base.service show CellularServiceProvider
+import ...config
 
 /**
 This is the driver and service for the Sequans Monarch module. The easiest
@@ -28,30 +29,24 @@ $ jag run examples/monarch.toit
 
 Happy networking!
 */
-main:
-  service := MonarchService
+main --config/CellularConfiguration=CellularConfiguration:
+  service := MonarchService --config=config
   service.install
 
 // --------------------------------------------------------------------------
 
 class MonarchService extends CellularServiceProvider:
-  constructor:
-    super "sequans/monarch" --major=0 --minor=1 --patch=0
+  constructor --config/CellularConfiguration:
+    super "sequans/monarch" --major=0 --minor=1 --patch=0 --config=config
 
   create_driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
-      --power/gpio.Pin?
-      --reset/gpio.Pin?
-      --baud_rates/List?:
+      --config/CellularConfiguration:
     // TODO(kasper): If power or reset are given, we should probably
     // throw an exception.
     return Monarch port logger
-        --uart_baud_rates=baud_rates or [921_600]
+        --uart_baud_rates=config.uart-baud-rates or [921_600]
 
 /**
 Driver for Sequans Monarch, GSM communicating over NB-IoT & M1.
