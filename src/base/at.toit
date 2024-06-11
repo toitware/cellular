@@ -8,13 +8,6 @@ import log
 CLOSED_ERROR_ ::= "AT_SESSION_CLOSED"
 COMMAND_TIMEOUT_ERROR ::= "AT_COMMAND_TIMEOUT"
 
-// The SDK, before v2.0.0-alpha.154, has a bug in `index-of --to`.
-// This is a work-around for that bug.
-index_of_work_around reader/io.Reader byte/int --to/int -> int:
-  to.repeat:
-    if (reader.peek_byte it) == byte: return it
-  return -1
-
 /**
 Command to be send on a AT $Session. The command must be one of the 4 types
   `action`, `read`, `test` or `set`.
@@ -403,8 +396,7 @@ class Session:
     // Find end of line. Note it may not be valid for custom parsers.
     line_end := reader_.index_of s3
     // Look for ':'.
-    // Work around bug in the `index-of` function:
-    cmd_end := index_of_work_around reader_ ':' --to=line_end
+    cmd_end := reader_.index_of ':' --to=line_end
     if cmd_end < 0:
       // If we didn't find a ':' within the line, it's an URC with no param.
       cmd := reader_.read_string line_end
