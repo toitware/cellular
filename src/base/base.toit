@@ -240,10 +240,22 @@ abstract class CellularBase implements Cellular:
       registrations.do: session.set it [2]
 
       if not psm:
-        command := operator
-            ? COPS.manual operator.op --rat=operator.rat
-            : COPS.automatic
-        send_abortable_ session command
+        result := send_abortable_ session COPS.read
+        cur_cops := result.single
+        cur_mode := cur_cops[0]
+
+        // If operator is defined, do manual operator selection.
+        // Otherwise, only set new COPS value if it's not currently
+        // set to automatic mode. Calling COPS=0 every time takes 
+        // much longer.
+        command := null
+        if operator:
+          command = COPS.manual operator.op --rat=operator.rat
+        else if cur_mode != COPS.MODE_AUTOMATIC:
+          command = COPS.automatic
+        
+        if command:
+          send_abortable_ session command
 
       wait_for_urc_ --session=session:
         if done.get == "+CGREG":
@@ -311,17 +323,23 @@ class COPS extends at.Command:
   // COPS times out after 180s, but since it can be aborted, any timeout can be used.
   static MAX_TIMEOUT ::= Duration --m=3
   static FORMAT_NUMERIC ::= 2
-
+  static MODE_AUTOMATIC ::= 0
+  static MODE_MANUAL ::= 1
+  static MODE_DEREGISTER ::= 2
+  static MODE_ONLY_FORMAT ::= 3
+  static MODE_MANUAL_THEN_AUTO ::= 4
+  static MODE_EXTENDED_SEARCH ::= 5
+  static MODE_EXTENDED_SEARCH_NO_TAGS ::= 6
   constructor.manual operator --rat=null:
-    args := [1, FORMAT_NUMERIC, operator]
+    args := [MODE_MANUAL, FORMAT_NUMERIC, operator]
     if rat: args.add rat
     super.set "+COPS" --parameters=args --timeout=compute_timeout
 
   constructor.automatic:
-    super.set "+COPS" --parameters=[0, FORMAT_NUMERIC] --timeout=compute_timeout
+    super.set "+COPS" --parameters=[MODE_AUTOMATIC, FORMAT_NUMERIC] --timeout=compute_timeout
 
   constructor.deregister:
-    super.set "+COPS" --parameters=[2] --timeout=compute_timeout
+    super.set "+COPS" --parameters=[MODE_DEREGISTER] --timeout=compute_timeout
 
   constructor.scan:
     super.test "+COPS" --timeout=compute_timeout
