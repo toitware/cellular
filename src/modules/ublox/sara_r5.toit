@@ -23,7 +23,7 @@ class SaraR5Service extends CellularServiceProvider:
   constructor:
     super "ublox/sara_r5" --major=0 --minor=1 --patch=0
 
-  create_driver -> cellular.Cellular
+  create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
       --rx/gpio.Pin?
@@ -32,16 +32,16 @@ class SaraR5Service extends CellularServiceProvider:
       --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
-      --baud_rates/List?:
+      --baud-rates/List?:
     return SaraR5 port logger
         --rx=rx
         --tx=tx
         --rts=rts
         --cts=cts
-        --pwr_on=power
-        --reset_n=reset
-        --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
-        --is_always_online=true
+        --pwr-on=power
+        --reset-n=reset
+        --uart-baud-rates=baud-rates or [921_600, cellular.Cellular.DEFAULT-BAUD-RATE]
+        --is-always-online=true
 
 /**
 Driver for Sara-R5, GSM communicating over NB-IoT & M1.
@@ -53,99 +53,99 @@ class SaraR5 extends UBloxCellular:
   tx/gpio.Pin?
   rts/gpio.Pin?
   cts/gpio.Pin?
-  pwr_on/gpio.Pin?
-  reset_n/gpio.Pin?
+  pwr-on/gpio.Pin?
+  reset-n/gpio.Pin?
 
   constructor port/uart.Port logger/log.Logger
       --.rx=null
       --.tx=null
       --.rts=null
       --.cts=null
-      --.pwr_on=null
-      --.reset_n=null
-      --uart_baud_rates/List
-      --is_always_online/bool:
+      --.pwr-on=null
+      --.reset-n=null
+      --uart-baud-rates/List
+      --is-always-online/bool:
     super
       port
       --logger=logger
       --config=CONFIG_
-      --cat_m1
-      --uart_baud_rates=uart_baud_rates
-      --use_psm=not is_always_online
+      --cat-m1
+      --uart-baud-rates=uart-baud-rates
+      --use-psm=not is-always-online
 
-  network_name -> string:
+  network-name -> string:
     return "cellular:sara-r5"
 
-  static list_equals_ a/List b/List -> bool:
+  static list-equals_ a/List b/List -> bool:
     if a.size != b.size: return false
     a.size.repeat:
       if a[it] != b[it]: return false
     return true
 
-  on_connected_ session/at.Session:
-    upsd_status := session.set "+UPSND" [0, 8]
-    if list_equals_ upsd_status.last [0, 8, 1]:
+  on-connected_ session/at.Session:
+    upsd-status := session.set "+UPSND" [0, 8]
+    if list-equals_ upsd-status.last [0, 8, 1]:
       // The PDP profile is already active. Trying to change it is
       // an illegal operation at this point.
       return
 
     // Attach to network.
     changed := false
-    upsd_map_cid_target := [0, 100, 1]
-    upsd_map_cid := session.set "+UPSD" upsd_map_cid_target[0..2]
-    if not list_equals_ upsd_map_cid.last upsd_map_cid_target:
-      session.set "+UPSD" upsd_map_cid_target
+    upsd-map-cid-target := [0, 100, 1]
+    upsd-map-cid := session.set "+UPSD" upsd-map-cid-target[0..2]
+    if not list-equals_ upsd-map-cid.last upsd-map-cid-target:
+      session.set "+UPSD" upsd-map-cid-target
       changed = true
 
-    upsd_protocol_target := [0, 0, 0]
-    upsd_protocol := session.set "+UPSD" upsd_protocol_target[0..2]
-    if not list_equals_ upsd_protocol.last upsd_protocol_target:
-      session.set "+UPSD" upsd_protocol_target
+    upsd-protocol-target := [0, 0, 0]
+    upsd-protocol := session.set "+UPSD" upsd-protocol-target[0..2]
+    if not list-equals_ upsd-protocol.last upsd-protocol-target:
+      session.set "+UPSD" upsd-protocol-target
       changed = true
 
     if changed:
-      send_abortable_ session (UPSDA --action=0)
-      send_abortable_ session (UPSDA --action=3)
+      send-abortable_ session (UPSDA --action=0)
+      send-abortable_ session (UPSDA --action=3)
 
-  psm_enabled_psv_target -> List:
+  psm-enabled-psv-target -> List:
     return [1, 2000]  // TODO(kasper): Testing - go to sleep after ~9.2s.
 
-  reboot_after_cedrxs_or_cpsms_changes -> bool:
+  reboot-after-cedrxs-or-cpsms-changes -> bool:
     return false
 
-  on_reset session/at.Session:
+  on-reset session/at.Session:
     session.send
-      cellular.CFUN.reset --reset_sim
+      cellular.CFUN.reset --reset-sim
 
-  power_on -> none:
-    if not pwr_on: return
-    critical_do --no-respect_deadline:
-      pwr_on.set 1
+  power-on -> none:
+    if not pwr-on: return
+    critical-do --no-respect-deadline:
+      pwr-on.set 1
       sleep --ms=1000
-      pwr_on.set 0
+      pwr-on.set 0
       // TODO(kasper): We try to wait for a bit like we do on
       // the SaraR4. It isn't clear if this is necessary.
       sleep --ms=250
 
-  power_off -> none:
-    if not (pwr_on and reset_n): return
-    critical_do --no-respect_deadline:
-      pwr_on.set 1
-      reset_n.set 1
+  power-off -> none:
+    if not (pwr-on and reset-n): return
+    critical-do --no-respect-deadline:
+      pwr-on.set 1
+      reset-n.set 1
       sleep --ms=23_100  // Minimum is 23,000 ms.
-      pwr_on.set 0
+      pwr-on.set 0
       sleep --ms=1_600   // Minimum is 1,500 ms.
-      reset_n.set 0
+      reset-n.set 0
 
   reset -> none:
-    if not reset_n: return
-    critical_do --no-respect_deadline:
-      reset_n.set 1
+    if not reset-n: return
+    critical-do --no-respect-deadline:
+      reset-n.set 1
       sleep --ms=150  // Minimum is 100ms.
-      reset_n.set 0
+      reset-n.set 0
       sleep --ms=250  // Wait like we do in $power_on.
 
-  is_powered_off -> bool?:
+  is-powered-off -> bool?:
     if rx == null: return null
 
     // On SARA-R5, the RXD pin (modem's uart output) is a push-pull
@@ -161,23 +161,23 @@ class SaraR5 extends UBloxCellular:
     rx.configure --input --pull-down
 
     // Run multiple checks of the pin state to ensure that it's not flickering.
-    all_low := true
+    all-low := true
     8.repeat:
-      if all_low and rx.get == 1: all_low = false
+      if all-low and rx.get == 1: all-low = false
 
     // Reconfigure the RX pin as normal input.
     rx.configure --input
-    return all_low
+    return all-low
 
 
 class UPSDA extends at.Command:
   // UPSDA times out after 180s, but since it can be aborted, any timeout can be used.
-  static MAX_TIMEOUT ::= Duration --m=3
+  static MAX-TIMEOUT ::= Duration --m=3
 
   constructor --action/int:
-    super.set "+UPSDA" --parameters=[0, action] --timeout=compute_timeout
+    super.set "+UPSDA" --parameters=[0, action] --timeout=compute-timeout
 
   // We use the deadline in the task to let the AT processor know that we can abort
   // the UPSDA operation by sending more AT commands.
-  static compute_timeout -> Duration:
-    return min MAX_TIMEOUT (Duration --us=(Task.current.deadline - Time.monotonic_us))
+  static compute-timeout -> Duration:
+    return min MAX-TIMEOUT (Duration --us=(Task.current.deadline - Time.monotonic-us))

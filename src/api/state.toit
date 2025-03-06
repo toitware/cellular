@@ -12,16 +12,16 @@ interface CellularStateService:
       --minor=1
 
   quality -> SignalQuality?
-  static QUALITY_INDEX ::= 0
+  static QUALITY-INDEX ::= 0
 
   iccid -> string?
-  static ICCID_INDEX ::= 1
+  static ICCID-INDEX ::= 1
 
   model -> string?
-  static MODEL_INDEX ::= 2
+  static MODEL-INDEX ::= 2
 
   version -> string?
-  static VERSION_INDEX ::= 3
+  static VERSION-INDEX ::= 3
 
 class CellularStateServiceClient extends services.ServiceClient implements CellularStateService:
   static SELECTOR ::= CellularStateService.SELECTOR
@@ -30,14 +30,14 @@ class CellularStateServiceClient extends services.ServiceClient implements Cellu
     super selector
 
   quality -> SignalQuality?:
-    result := invoke_ CellularStateService.QUALITY_INDEX null
+    result := invoke_ CellularStateService.QUALITY-INDEX null
     return result ? (SignalQuality --power=result[0] --quality=result[1]) : null
 
   iccid -> string?:
-    return invoke_ CellularStateService.ICCID_INDEX null
+    return invoke_ CellularStateService.ICCID-INDEX null
 
   model -> string?:
-    return invoke_ CellularStateService.MODEL_INDEX null
+    return invoke_ CellularStateService.MODEL-INDEX null
 
   version -> string?:
-    return invoke_ CellularStateService.VERSION_INDEX null
+    return invoke_ CellularStateService.VERSION-INDEX null

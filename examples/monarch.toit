@@ -20,17 +20,17 @@ import net.cellular
 
 main:
   config ::= {
-    cellular.CONFIG_APN: "soracom.io",
+    cellular.CONFIG-APN: "soracom.io",
 
-    cellular.CONFIG_UART_TX: 5,
-    cellular.CONFIG_UART_RX: 23,
-    cellular.CONFIG_UART_RTS: 19,
-    cellular.CONFIG_UART_CTS: 18,
+    cellular.CONFIG-UART-TX: 5,
+    cellular.CONFIG-UART-RX: 23,
+    cellular.CONFIG-UART-RTS: 19,
+    cellular.CONFIG-UART-CTS: 18,
 
-    cellular.CONFIG_LOG_LEVEL: log.WARN_LEVEL,
+    cellular.CONFIG-LOG-LEVEL: log.WARN-LEVEL,
   }
 
-  logger := log.default.with_name "monarch"
+  logger := log.default.with-name "monarch"
   logger.info "opening network"
   network := cellular.open config
 

@@ -5,7 +5,7 @@
 import .api.state
 
 service_/CellularStateServiceClient? ::= (CellularStateServiceClient).open
-    --if_absent=: null
+    --if-absent=: null
 
 class SignalQuality:
   power/float?
