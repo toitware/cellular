@@ -23,7 +23,7 @@ class BG96Service extends CellularServiceProvider:
   constructor:
     super "quectel/bg96" --major=0 --minor=1 --patch=0
 
-  create_driver -> cellular.Cellular
+  create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
       --rx/gpio.Pin?
@@ -32,12 +32,12 @@ class BG96Service extends CellularServiceProvider:
       --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
-      --baud_rates/List?:
+      --baud-rates/List?:
     return BG96 port logger
         --pwrkey=power
         --rstkey=reset
-        --baud_rates=baud_rates
-        --is_always_online=true
+        --baud-rates=baud-rates
+        --is-always-online=true
 
 /**
 Driver for BG96, LTE-M modem.
@@ -46,40 +46,40 @@ class BG96 extends QuectelCellular:
   pwrkey/gpio.Pin?
   rstkey/gpio.Pin?
 
-  constructor port/uart.Port logger/log.Logger --.pwrkey=null --.rstkey=null --baud_rates/List? --is_always_online/bool:
+  constructor port/uart.Port logger/log.Logger --.pwrkey=null --.rstkey=null --baud-rates/List? --is-always-online/bool:
     super port
         --logger=logger
-        --uart_baud_rates=baud_rates or [921_600, cellular.Cellular.DEFAULT_BAUD_RATE]
-        --use_psm=not is_always_online
+        --uart-baud-rates=baud-rates or [921_600, cellular.Cellular.DEFAULT-BAUD-RATE]
+        --use-psm=not is-always-online
 
-  network_name -> string:
+  network-name -> string:
     return "cellular:bg96"
 
-  on_connected_ session/at.Session:
+  on-connected_ session/at.Session:
     // Attach to network.
     session.set "+QICSGP" [cid_]
     session.send (QIACT cid_)
 
-  on_reset session/at.Session:
+  on-reset session/at.Session:
     session.set "+CFUN" [1, 1]
 
-  power_on -> none:
+  power-on -> none:
     if not pwrkey: return
-    critical_do --no-respect_deadline:
+    critical-do --no-respect-deadline:
       pwrkey.set 1
       sleep --ms=150
       pwrkey.set 0
 
-  power_off -> none:
+  power-off -> none:
     if not pwrkey: return
-    critical_do --no-respect_deadline:
+    critical-do --no-respect-deadline:
       pwrkey.set 1
       sleep --ms=650
       pwrkey.set 0
 
   reset -> none:
     if not rstkey: return
-    critical_do --no-respect_deadline:
+    critical-do --no-respect-deadline:
       rstkey.set 1
       sleep --ms=150
       rstkey.set 0

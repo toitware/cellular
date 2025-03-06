@@ -23,7 +23,7 @@ class SaraR4Service extends CellularServiceProvider:
   constructor:
     super "ublox/sara_r4" --major=0 --minor=1 --patch=0
 
-  create_driver -> cellular.Cellular
+  create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
       --rx/gpio.Pin?
@@ -32,12 +32,12 @@ class SaraR4Service extends CellularServiceProvider:
       --cts/gpio.Pin?
       --power/gpio.Pin?
       --reset/gpio.Pin?
-      --baud_rates/List?:
+      --baud-rates/List?:
     return SaraR4 port logger
-        --pwr_on=power
-        --reset_n=reset
-        --uart_baud_rates=baud_rates or [460_800, cellular.Cellular.DEFAULT_BAUD_RATE]
-        --is_always_online=true
+        --pwr-on=power
+        --reset-n=reset
+        --uart-baud-rates=baud-rates or [460_800, cellular.Cellular.DEFAULT-BAUD-RATE]
+        --is-always-online=true
 
 /**
 Driver for Sara-R4, GSM communicating over NB-IoT & M1.
@@ -54,63 +54,63 @@ class SaraR4 extends UBloxCellular:
   tx/gpio.Pin?
   rts/gpio.Pin?
   cts/gpio.Pin?
-  pwr_on/gpio.Pin?
-  reset_n/gpio.Pin?
+  pwr-on/gpio.Pin?
+  reset-n/gpio.Pin?
 
   constructor port/uart.Port logger/log.Logger
       --.rx=null
       --.tx=null
       --.rts=null
       --.cts=null
-      --.pwr_on=null
-      --.reset_n=null
-      --uart_baud_rates/List
-      --is_always_online/bool:
+      --.pwr-on=null
+      --.reset-n=null
+      --uart-baud-rates/List
+      --is-always-online/bool:
     super
       port
       --logger=logger
       --config=CONFIG_
-      --cat_m1
-      --cat_nb1
-      --uart_baud_rates=uart_baud_rates
-      --async_socket_connect
-      --async_socket_close
-      --use_psm=not is_always_online
+      --cat-m1
+      --cat-nb1
+      --uart-baud-rates=uart-baud-rates
+      --async-socket-connect
+      --async-socket-close
+      --use-psm=not is-always-online
 
-  network_name -> string:
+  network-name -> string:
     return "cellular:sara-r4"
 
-  on_connected_ session/at.Session:
+  on-connected_ session/at.Session:
     // Do nothing.
 
-  psm_enabled_psv_target -> List:
+  psm-enabled-psv-target -> List:
     return [4]
 
-  reboot_after_cedrxs_or_cpsms_changes -> bool:
+  reboot-after-cedrxs-or-cpsms-changes -> bool:
     return false
 
-  on_reset session/at.Session:
+  on-reset session/at.Session:
     session.send cellular.CFUN.reset
 
-  power_on -> none:
-    if not pwr_on: return
-    critical_do --no-respect_deadline:
-      pwr_on.set 1
+  power-on -> none:
+    if not pwr-on: return
+    critical-do --no-respect-deadline:
+      pwr-on.set 1
       sleep --ms=150
-      pwr_on.set 0
+      pwr-on.set 0
       // The chip needs the pin to be off for 250ms so it doesn't turn off again.
       sleep --ms=250
 
-  power_off -> none:
-    if not pwr_on: return
-    critical_do --no-respect_deadline:
-      pwr_on.set 1
+  power-off -> none:
+    if not pwr-on: return
+    critical-do --no-respect-deadline:
+      pwr-on.set 1
       sleep --ms=1500
-      pwr_on.set 0
+      pwr-on.set 0
 
   reset -> none:
-    if not reset_n: return
-    critical_do --no-respect_deadline:
-      reset_n.set 1
+    if not reset-n: return
+    critical-do --no-respect-deadline:
+      reset-n.set 1
       sleep --ms=10_000
-      reset_n.set 0
+      reset-n.set 0

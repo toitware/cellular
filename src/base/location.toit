@@ -20,7 +20,7 @@ class Location:
   /**
   Constructs a location from the given bytes.
 
-  This is the inverse of $to_byte_array.
+  This is the inverse of $to-byte-array.
   */
   constructor.deserialize bytes/ByteArray:
     values := tison.decode bytes
@@ -29,17 +29,17 @@ class Location:
 
   /** See $super. */
   stringify:
-    return "$(component_string_ latitude "N" "S"), $(component_string_ longitude "E" "W")"
+    return "$(component-string_ latitude "N" "S"), $(component-string_ longitude "E" "W")"
 
   /**
   Serializes this location.
 
   Produces valid input to $Location.deserialize.
   */
-  to_byte_array:
+  to-byte-array:
     return tison.encode [latitude, longitude]
 
-  component_string_ value/float positive/string negative/string -> string:
+  component-string_ value/float positive/string negative/string -> string:
     return "$(%3.5f value.abs)$(value >= 0 ? positive : negative)"
 
   /** See $super. */
@@ -48,7 +48,7 @@ class Location:
     return latitude == other.latitude and longitude == other.longitude
 
   /** The hash code of this location. */
-  hash_code -> int:
+  hash-code -> int:
     return latitude.bits * 13 + longitude.bits * 17
 
 /**
@@ -61,21 +61,21 @@ class GnssLocation extends Location:
   /** The time (UTC) when this location was recorded. */
   time/Time
   /** The horizontal accuracy. */
-  horizontal_accuracy/float ::= 0.0
+  horizontal-accuracy/float ::= 0.0
   /** The vertical accuracy. */
-  vertical_accuracy/float ::= 0.0
+  vertical-accuracy/float ::= 0.0
   /** The altitude relative to the median sea level. */
-  altitude_msl/float ::= 0.0
+  altitude-msl/float ::= 0.0
 
   /** Constructs a GNSS location from the given parameters. */
-  constructor location .altitude_msl .time .horizontal_accuracy .vertical_accuracy:
+  constructor location .altitude-msl .time .horizontal-accuracy .vertical-accuracy:
     super location.latitude location.longitude
 
 
   /**
   Constructs a GNSS location from the given bytes.
 
-  This is the inverse operation of $to_byte_array.
+  This is the inverse operation of $to-byte-array.
   */
   constructor.deserialize bytes/ByteArray?:
     values := tison.decode bytes
@@ -91,14 +91,14 @@ class GnssLocation extends Location:
 
   This is the inverse operation of $GnssLocation.deserialize.
   */
-  to_byte_array:
+  to-byte-array:
     return tison.encode [
       latitude,
       longitude,
-      altitude_msl,
-      time.to_byte_array,
-      horizontal_accuracy,
-      vertical_accuracy,
+      altitude-msl,
+      time.to-byte-array,
+      horizontal-accuracy,
+      vertical-accuracy,
     ]
 
   /** See $super. */
@@ -106,11 +106,11 @@ class GnssLocation extends Location:
     if other is not GnssLocation: return false
     return super other and
         time == other.time and
-        horizontal_accuracy == other.horizontal_accuracy and
-        vertical_accuracy == other.vertical_accuracy and
-        altitude_msl == other.altitude_msl
+        horizontal-accuracy == other.horizontal-accuracy and
+        vertical-accuracy == other.vertical-accuracy and
+        altitude-msl == other.altitude-msl
 
   /** The hash code. */
-  hash_code -> int:
-    return (super + time.hash_code * 19 + horizontal_accuracy * 23
-        + vertical_accuracy * 29 + horizontal_accuracy * 37 + altitude_msl * 41).to_int
+  hash-code -> int:
+    return (super + time.hash-code * 19 + horizontal-accuracy * 23
+        + vertical-accuracy * 29 + horizontal-accuracy * 37 + altitude-msl * 41).to-int

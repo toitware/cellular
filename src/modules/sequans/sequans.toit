@@ -17,21 +17,21 @@ import ...base.base
 import ...base.cellular
 import ...base.exceptions
 
-CONNECTED_STATE_  ::= 1 << 0
-READ_STATE_       ::= 1 << 1
-CLOSE_STATE_      ::= 1 << 2
+CONNECTED-STATE_  ::= 1 << 0
+READ-STATE_       ::= 1 << 1
+CLOSE-STATE_      ::= 1 << 2
 
 monitor SocketState_:
   state_/int := 0
   dirty_/bool := false
 
-  wait_for state --error_state=CLOSE_STATE_:
-    bits := (state | error_state)
+  wait-for state --error-state=CLOSE-STATE_:
+    bits := (state | error-state)
     await: state_ & bits != 0
     dirty_ = false
     return state_ & bits
 
-  set_state state:
+  set-state state:
     dirty_ = true
     state_ |= state
 
@@ -51,9 +51,9 @@ class Socket_:
   constructor .cellular_ .id_:
 
   closed_:
-    state_.set_state CLOSE_STATE_
+    state_.set-state CLOSE-STATE_
 
-  get_id_:
+  get-id_:
     if not id_: throw "socket is closed"
     return id_
 
@@ -61,38 +61,38 @@ class Socket_:
   Calls the given $block.
   Captures exceptions and translates them to socket-related errors.
   */
-  socket_call [block]:
+  socket-call [block]:
     // Ensure no other socket call can come in between.
     cellular_.at_.do: | session/at.Session |
       e := catch:
         return block.call session
-      throw (last_error_ session e)
+      throw (last-error_ session e)
     unreachable
 
-  last_error_ cellular/at.Session original_error/string="":
-    throw (UnknownException "SOCKET ERROR $original_error")
+  last-error_ cellular/at.Session original-error/string="":
+    throw (UnknownException "SOCKET ERROR $original-error")
 
 class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin implements tcp.Socket:
-  static MAX_SIZE_ ::= 1500
-  static WRITE_TIMEOUT_ ::= Duration --s=5
+  static MAX-SIZE_ ::= 1500
+  static WRITE-TIMEOUT_ ::= Duration --s=5
 
-  peer_address/net.SocketAddress ::= ?
+  peer-address/net.SocketAddress ::= ?
 
-  no_delay -> bool:
+  no-delay -> bool:
     // TODO(kasper): Implement this.
     return false
 
-  no_delay= value/bool -> none:
+  no-delay= value/bool -> none:
     // TODO(kasper): Implement this.
 
-  constructor cellular id .peer_address:
+  constructor cellular id .peer-address:
     super cellular id
 
-    socket_call: | session/at.Session |
+    socket-call: | session/at.Session |
       // Configure socket to allow 8s timeout, and use 10s for the overall
       // AT command.
       session.set "+SQNSCFG" [
-        get_id_,
+        get-id_,
         cellular_.cid_,
         0,   // Automatically choose packet size for online mode (default).
         0,   // Disable idle timeout.
@@ -105,24 +105,24 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
       // to errors when decoding SQNSRING messages if they contain
       // unexpected binary data.
       session.set "+SQNSCFGEXT" [
-        get_id_,
+        get-id_,
         0,  // 0 = SQNSRING URC mode with no data (default).
         0,  // 0 = Data represented as text or raw binary (default).
         0,  // 0 = Keep-alive (0-240 seconds). Unused by modem.
       ]
 
       result := session.send
-        SQNSD.tcp get_id_ peer_address
-      if result.code == "OK": state_.set_state CONNECTED_STATE_
+        SQNSD.tcp get-id_ peer-address
+      if result.code == "OK": state_.set-state CONNECTED-STATE_
 
-  local_address -> net.SocketAddress:
+  local-address -> net.SocketAddress:
     return net.SocketAddress
       net.IpAddress.parse "127.0.0.1"
       0
 
   connect_:
-    state := cellular_.wait_for_urc_: state_.wait_for CONNECTED_STATE_
-    if state & CONNECTED_STATE_ != 0: return
+    state := cellular_.wait-for-urc_: state_.wait-for CONNECTED-STATE_
+    if state & CONNECTED-STATE_ != 0: return
     throw "CONNECT_FAILED: $error_"
 
   /**
@@ -133,17 +133,17 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
 
   read_ -> ByteArray?:
     while true:
-      state := cellular_.wait_for_urc_: state_.wait_for READ_STATE_
-      if state & CLOSE_STATE_ != 0:
+      state := cellular_.wait-for-urc_: state_.wait-for READ-STATE_
+      if state & CLOSE-STATE_ != 0:
         return null
-      else if state & READ_STATE_ != 0:
-        socket_call: | session/at.Session |
-          r := session.set "+SQNSI" [get_id_]
+      else if state & READ-STATE_ != 0:
+        socket-call: | session/at.Session |
+          r := session.set "+SQNSI" [get-id_]
           if r.single[3] > 0:
-            r = session.set "+SQNSRECV" [get_id_, 1500]
+            r = session.set "+SQNSRECV" [get-id_, 1500]
             out := r.single
             return out[1]
-        state_.clear READ_STATE_
+        state_.clear READ-STATE_
       else:
         throw "SOCKET ERROR"
 
@@ -156,22 +156,22 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
   try-write_ data/io.Data from/int=0 to/int=data.byte-size -> int:
     if to == from:
       return 0
-    else if to - from > MAX_SIZE_:
-      to = from + MAX_SIZE_
+    else if to - from > MAX-SIZE_:
+      to = from + MAX-SIZE_
     data = data.byte-slice from to
 
     e := catch --unwind=(: it is not UnavailableException):
-      socket_call:
+      socket-call:
         // Create a custom command, so we can experiment with the timeout.
         command ::= at.Command.set
             "+SQNSSENDEXT"
-            --parameters=[get_id_, data.byte-size]
+            --parameters=[get-id_, data.byte-size]
             --data=data
-            --timeout=WRITE_TIMEOUT_
-        start ::= Time.monotonic_us
+            --timeout=WRITE-TIMEOUT_
+        start ::= Time.monotonic-us
         it.send command
-        elapsed ::= Time.monotonic_us - start
-        if elapsed > at.Command.DEFAULT_TIMEOUT.in_us:
+        elapsed ::= Time.monotonic-us - start
+        if elapsed > at.Command.DEFAULT-TIMEOUT.in-us:
           cellular_.logger.warn "slow tcp write" --tags={"time": "$(elapsed / 1_000) ms"}
       // Give processing time to other tasks, to avoid busy write-loop that starves readings.
       yield
@@ -188,7 +188,7 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
   Closes the socket for write. The socket is still be able to read incoming data.
   Deprecated. Use ($out).close instead.
   */
-  close_write:
+  close-write:
     out.close
 
   close-writer_:
@@ -201,7 +201,7 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
       closed_
       id_ = null
       cellular_.at_.do:
-        if not it.is_closed:
+        if not it.is-closed:
           it.set "+SQNSH" [id]
       cellular_.sockets_.remove id
 
@@ -209,28 +209,28 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     return 1500
 
 class UdpSocket extends Socket_ implements udp.Socket:
-  remote_address_ := null
+  remote-address_ := null
   port_/int
 
   constructor cellular/SequansCellular id/int .port_/int:
     super cellular id
 
-  local_address -> net.SocketAddress:
+  local-address -> net.SocketAddress:
     return net.SocketAddress
       net.IpAddress.parse "127.0.0.1"
       port_
 
   connect address/net.SocketAddress:
-    remote_address_ = address
+    remote-address_ = address
 
-    socket_call: | session/at.Session |
+    socket-call: | session/at.Session |
       session.send
-        SQNSD.udp get_id_ port_ remote_address_
+        SQNSD.udp get-id_ port_ remote-address_
 
   write data/io.Data from/int=0 to/int=data.byte-size -> int:
-    if not remote_address_: throw "NOT_CONNECTED"
+    if not remote-address_: throw "NOT_CONNECTED"
     if from != 0 or to != data.byte-size: data = data.byte-slice from to
-    return send_ remote_address_ data
+    return send_ remote-address_ data
 
   read -> ByteArray?:
     msg := receive
@@ -242,24 +242,24 @@ class UdpSocket extends Socket_ implements udp.Socket:
 
   send_ address data/io.Data -> int:
     if data.byte-size > mtu: throw "PAYLOAD_TO_LARGE"
-    res := socket_call: it.set "+SQNSSENDEXT" [get_id_, data.byte-size] --data=data
+    res := socket-call: it.set "+SQNSSENDEXT" [get-id_, data.byte-size] --data=data
     return data.byte-size
 
   receive -> udp.Datagram?:
     while true:
-      state := state_.wait_for READ_STATE_
-      if state & CLOSE_STATE_ != 0:
+      state := state_.wait-for READ-STATE_
+      if state & CLOSE-STATE_ != 0:
         return null
-      else if state & READ_STATE_ != 0:
-        socket_call: | session/at.Session |
-          r := session.set "+SQNSI" [get_id_]
+      else if state & READ-STATE_ != 0:
+        socket-call: | session/at.Session |
+          r := session.set "+SQNSI" [get-id_]
           if r.single[3] > 0:
-            r = session.set "+SQNSRECV" [get_id_, 1500]
+            r = session.set "+SQNSRECV" [get-id_, 1500]
             out := r.single
             return udp.Datagram
               out[1]
-              remote_address_
-        state_.clear READ_STATE_
+              remote-address_
+        state_.clear READ-STATE_
       else:
         throw "SOCKET ERROR"
 
@@ -269,7 +269,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
       id_ = null
       closed_
       cellular_.at_.do:
-        if not it.is_closed:
+        if not it.is-closed:
           it.set "+SQNSH" [id]
       cellular_.sockets_.remove id
 
@@ -289,59 +289,59 @@ abstract class SequansCellular extends CellularBase:
   /**
   Called when the driver should reset.
   */
-  abstract on_reset session/at.Session
+  abstract on-reset session/at.Session
 
   constructor
       uart/uart.Port
       --logger/log.Logger
-      --uart_baud_rates/List
-      --use_psm:
-    at_session := configure_at_ uart logger
+      --uart-baud-rates/List
+      --use-psm:
+    at-session := configure-at_ uart logger
 
-    super uart at_session
+    super uart at-session
       --logger=logger
       --constants=SequansConstants
-      --uart_baud_rates=uart_baud_rates
-      --use_psm=use_psm
+      --uart-baud-rates=uart-baud-rates
+      --use-psm=use-psm
 
-    at_session_.register_urc "+SQNSRING"::
+    at-session_.register-urc "+SQNSRING"::
       sockets_.get it[0]
-        --if_present=: it.state_.set_state READ_STATE_
+        --if-present=: it.state_.set-state READ-STATE_
 
-    at_session_.register_urc "+SQNSH"::
+    at-session_.register-urc "+SQNSH"::
       sockets_.get it[0]
-        --if_present=: it.state_.set_state CLOSE_STATE_
+        --if-present=: it.state_.set-state CLOSE-STATE_
 
-    at_session_.register_urc "+SQNSSHDN"::
+    at-session_.register-urc "+SQNSSHDN"::
       closed_.set null
 
-  static configure_at_ uart/uart.Port logger/log.Logger -> at.Session:
+  static configure-at_ uart/uart.Port logger/log.Logger -> at.Session:
     session := at.Session uart.in uart.out
       --logger=logger
-      --data_marker='>'
-      --command_delay=Duration --ms=20
+      --data-marker='>'
+      --command-delay=Duration --ms=20
 
-    session.add_ok_termination "CONNECT"
-    session.add_error_termination "+CME ERROR"
-    session.add_error_termination "+CMS ERROR"
-    session.add_error_termination "NO CARRIER"
+    session.add-ok-termination "CONNECT"
+    session.add-error-termination "+CME ERROR"
+    session.add-error-termination "+CMS ERROR"
+    session.add-error-termination "NO CARRIER"
 
-    session.add_response_parser "+SQNSRECV" :: | reader/io.Reader |
+    session.add-response-parser "+SQNSRECV" :: | reader/io.Reader |
       line := reader.read-bytes-up-to '\r'
-      parts := at.parse_response line
+      parts := at.parse-response line
       if parts[1] == 0:
         [0]
       else:
         reader.skip 1  // Skip '\n'.
-        [parts[1], reader.read_bytes parts[1]]
+        [parts[1], reader.read-bytes parts[1]]
 
-    session.add_response_parser "+SQNBANDSEL" :: | reader/io.Reader |
+    session.add-response-parser "+SQNBANDSEL" :: | reader/io.Reader |
       line := reader.read-bytes-up-to session.s3
-      at.parse_response line --plain
+      at.parse-response line --plain
 
-    session.add_response_parser "+SQNDNSLKUP" :: | reader/io.Reader |
+    session.add-response-parser "+SQNDNSLKUP" :: | reader/io.Reader |
       line := reader.read-bytes-up-to session.s3
-      at.parse_response line --plain
+      at.parse-response line --plain
 
     return session
 
@@ -349,15 +349,15 @@ abstract class SequansCellular extends CellularBase:
     try:
       sockets_.values.do: it.closed_
       2.repeat: | attempt/int |
-        catch: with_timeout --ms=1_500: at_.do:
-          if not it.is_closed:
+        catch: with-timeout --ms=1_500: at_.do:
+          if not it.is-closed:
             it.send CFUN.offline
           return
         // If the chip was recently rebooted, wait for it to be responsive before
         // communicating with it again. Only do this once.
-        if attempt == 0: wait_for_ready
+        if attempt == 0: wait-for-ready
     finally:
-      at_session_.close
+      at-session_.close
       uart_.close
 
   iccid:
@@ -368,45 +368,45 @@ abstract class SequansCellular extends CellularBase:
   detach:
 
   // Override disable_radio_, as the SIM cannot be accessed unless airplane mode is used.
-  disable_radio_ session/at.Session:
+  disable-radio_ session/at.Session:
     session.send CFUN.airplane
 
   // Override enable_radio as the Monarch modem needs a special sequence.
-  enable_radio -> none:
-    catch --trace=(: it != DEADLINE_EXCEEDED_ERROR) --unwind=(: it != DEADLINE_EXCEEDED_ERROR):
-      with_timeout (Duration --s=5):
+  enable-radio -> none:
+    catch --trace=(: it != DEADLINE-EXCEEDED-ERROR) --unwind=(: it != DEADLINE-EXCEEDED-ERROR):
+      with-timeout (Duration --s=5):
         at_.do: | session/at.Session |
           try:
             waiter := monitor.Latch
-            session.register_urc "+CEREG" ::
+            session.register-urc "+CEREG" ::
               if it.first == 2: waiter.set true
             // Force enable radio.
             session.send CFUN.online
 
             waiter.get
           finally:
-            session.unregister_urc "+CEREG"
+            session.unregister-urc "+CEREG"
 
-  ps_detach_ -> none:
+  ps-detach_ -> none:
     at_.do: | session/at.Session |
       try:
         waiter := monitor.Latch
-        session.register_urc "+CEREG" ::
+        session.register-urc "+CEREG" ::
           if it.first == 0: waiter.set true
         session.set "+CGATT" [0]
         waiter.get
       finally:
-        session.unregister_urc "+CEREG"
+        session.unregister-urc "+CEREG"
 
   connect --operator/Operator?=null -> none:
     if operator:
-      ps_detach_
+      ps-detach_
       // Using the RAT seems to give problems, so remove it.
       operator = Operator operator.op
     super --operator=operator
 
-  scan_for_operators -> List:
-    ps_detach_
+  scan-for-operators -> List:
+    ps-detach_
     return super
 
   configure apn/string --bands=null --rats=null:
@@ -414,8 +414,8 @@ abstract class SequansCellular extends CellularBase:
       // Set connection arguments.
 
       while true:
-        should_reboot := false
-        enter_configuration_mode_ session
+        should-reboot := false
+        enter-configuration-mode_ session
 
         // Set unsolicited events for CEREG to get radio ready.
         session.set "+CEREG" [2]
@@ -429,23 +429,23 @@ abstract class SequansCellular extends CellularBase:
         session.set "+SQNIPSCFG" [1, 100]
 
         if bands:
-          bands_str := ""
+          bands-str := ""
           bands.size.repeat:
-            if it > 0: bands_str += ","
-            bands_str += bands[it].stringify
-          set_band_mask_ session bands_str
+            if it > 0: bands-str += ","
+            bands-str += bands[it].stringify
+          set-band-mask_ session bands-str
 
-        if (get_apn_ session) != apn:
-          set_apn_ session apn
-          should_reboot = true
+        if (get-apn_ session) != apn:
+          set-apn_ session apn
+          should-reboot = true
 
-        if should_reboot:
+        if should-reboot:
           reboot_ session
           continue
 
         break
 
-  set_band_mask_ session/at.Session bands/string:
+  set-band-mask_ session/at.Session bands/string:
     // Set mask for m1.
     session.set "+SQNBANDSEL" [0, "standard", bands] --check=false
     // Set mask for nbiot.
@@ -457,31 +457,31 @@ abstract class SequansCellular extends CellularBase:
     at_.do: | session/at.Session |
       session.send RestoreFactoryDefaults
       session.action "^RESET"
-      wait_for_ready_ session
+      wait-for-ready_ session
 
   reboot_ session/at.Session:
-    on_reset session
+    on-reset session
     // Rebooting the module should get it back into a ready state. We avoid
     // calling $wait_for_ready_ because it flips the power on, which is too
     // heavy an operation.
-    5.repeat: if select_baud_ session: return
-    wait_for_ready_ session
+    5.repeat: if select-baud_ session: return
+    wait-for-ready_ session
 
-  set_baud_rate_ session/at.Session baud_rate/int:
+  set-baud-rate_ session/at.Session baud-rate/int:
     // NOP for Sequans devices.
 
-  network_interface -> net.Interface:
-    return Interface_ network_name this
+  network-interface -> net.Interface:
+    return Interface_ network-name this
 
 class SequansConstants implements Constants:
   RatCatM1 -> int?: return null
 
 class Interface_ extends CloseableNetwork implements net.Interface:
-  static FREE_PORT_RANGE ::= 1 << 14
+  static FREE-PORT-RANGE ::= 1 << 14
 
   name/string
   cellular_/SequansCellular
-  free_port_ := 0
+  free-port_ := 0
 
   constructor .name .cellular_:
 
@@ -499,39 +499,39 @@ class Interface_ extends CloseableNetwork implements net.Interface:
       return result.single[1..].map: net.IpAddress.parse it
     unreachable
 
-  udp_open --port/int?=null -> udp.Socket:
-    id := socket_id_
+  udp-open --port/int?=null -> udp.Socket:
+    id := socket-id_
     if not port or port == 0:
       // Best effort for rolling a free port.
-      port = FREE_PORT_RANGE + free_port_++ % FREE_PORT_RANGE
+      port = FREE-PORT-RANGE + free-port_++ % FREE-PORT-RANGE
     socket := UdpSocket cellular_ id port
-    cellular_.sockets_.update id --if_absent=(: socket): throw "socket already exists"
+    cellular_.sockets_.update id --if-absent=(: socket): throw "socket already exists"
     return socket
 
-  tcp_connect host/string port/int -> tcp.Socket:
+  tcp-connect host/string port/int -> tcp.Socket:
     ips := resolve host
-    return tcp_connect
+    return tcp-connect
         net.SocketAddress ips[0] port
 
-  tcp_connect address/net.SocketAddress -> tcp.Socket:
-    id := socket_id_
+  tcp-connect address/net.SocketAddress -> tcp.Socket:
+    id := socket-id_
     socket := TcpSocket cellular_ id address
-    cellular_.sockets_.update id --if_absent=(: socket): throw "socket already exists"
+    cellular_.sockets_.update id --if-absent=(: socket): throw "socket already exists"
 
     catch --unwind=(: socket.error_ = 1; true): socket.connect_
 
     return socket
 
-  tcp_listen port/int -> tcp.ServerSocket:
+  tcp-listen port/int -> tcp.ServerSocket:
     throw "UNIMPLEMENTED"
 
-  socket_id_ -> int:
+  socket-id_ -> int:
     6.repeat:
       if not cellular_.sockets_.contains it + 1: return it + 1
     throw
       ResourceExhaustedException "no more sockets available"
 
-  is_closed -> bool:
+  is-closed -> bool:
     // TODO(kasper): Implement this?
     return false
 
@@ -551,18 +551,18 @@ class SQNSSHDN extends at.Command:
     super.set "+SQNSSHDN" --timeout=TIMEOUT
 
 class SQNSD extends at.Command:
-  static TCP_TIMEOUT ::= Duration --s=20
+  static TCP-TIMEOUT ::= Duration --s=20
 
   constructor.tcp id/int address/net.SocketAddress:
     super.set
       "+SQNSD"
       --parameters=[id, 0, address.port, address.ip.stringify, 0, 0, 1]
-      --timeout=TCP_TIMEOUT
+      --timeout=TCP-TIMEOUT
 
-  constructor.udp id/int local_port/int address/net.SocketAddress:
+  constructor.udp id/int local-port/int address/net.SocketAddress:
     super.set
       "+SQNSD"
-      --parameters=[id, 1, address.port, address.ip.stringify, 0, local_port, 1, 0]
+      --parameters=[id, 1, address.port, address.ip.stringify, 0, local-port, 1, 0]
 
 class RestoreFactoryDefaults extends at.Command:
   static TIMEOUT ::= Duration --s=10

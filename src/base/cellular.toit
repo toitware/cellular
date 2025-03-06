@@ -9,20 +9,20 @@ import .at as at
 import .location show GnssLocation
 import ..state show SignalQuality
 
-RAT_LTE_M ::= 1
-RAT_NB_IOT ::= 2
-RAT_GSM ::= 3
+RAT-LTE-M ::= 1
+RAT-NB-IOT ::= 2
+RAT-GSM ::= 3
 
 /**
 Cellular driver interface for
 */
 interface Cellular:
-  static DEFAULT_BAUD_RATE/int ::= 115_200
+  static DEFAULT-BAUD-RATE/int ::= 115_200
 
   logger -> log.Logger
 
-  use_psm -> bool
-  use_psm= value/bool -> none
+  use-psm -> bool
+  use-psm= value/bool -> none
 
   /**
   Returns the model of the Cellular module.
@@ -49,40 +49,40 @@ interface Cellular:
   /**
   Connect to the service after a PSM wakeup.
   */
-  connect_psm -> none
+  connect-psm -> none
 
   /**
   Scan for operators.
   */
-  scan_for_operators -> List
+  scan-for-operators -> List
 
-  get_connected_operator -> Operator?
+  get-connected-operator -> Operator?
 
-  network_interface -> net.Interface
+  network-interface -> net.Interface
 
   detach -> none
 
   close -> none
-  close_uart -> none
+  close-uart -> none
 
-  signal_strength -> float?
-  signal_quality -> SignalQuality?
+  signal-strength -> float?
+  signal-quality -> SignalQuality?
 
-  wait_for_ready -> none
+  wait-for-ready -> none
 
-  enable_radio -> none
+  enable-radio -> none
 
-  disable_radio -> none
+  disable-radio -> none
 
-  power_on -> none
+  power-on -> none
 
-  power_off -> none
+  power-off -> none
 
   reset -> none
 
-  on_aborted_command session/at.Session command/at.Command -> none
+  on-aborted-command session/at.Session command/at.Command -> none
 
-  is_powered_off -> bool?
+  is-powered-off -> bool?
 
 class Operator:
   op/string
@@ -94,6 +94,6 @@ class Operator:
     return "$op ($rat)"
 
 interface Gnss:
-  gnss_start
-  gnss_location -> GnssLocation?
-  gnss_stop
+  gnss-start
+  gnss-location -> GnssLocation?
+  gnss-stop
