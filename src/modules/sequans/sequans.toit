@@ -348,14 +348,15 @@ abstract class SequansCellular extends CellularBase:
   close:
     try:
       sockets_.values.do: it.closed_
-      2.repeat: | attempt/int |
-        catch: with-timeout --ms=1_500: at_.do:
-          if not it.is-closed:
-            it.send CFUN.offline
-          return
+      at_.do: | session/at.Session |
+        if session.is-closed: return
         // If the chip was recently rebooted, wait for it to be responsive before
-        // communicating with it again. Only do this once.
-        if attempt == 0: wait-for-ready
+        // communicating with it again.
+        attempts := 0
+        while not select-baud_ session:
+          if ++attempts > 5: return
+        // Send the shutdown command.
+        session.send SQNSSHDN
     finally:
       at-session_.close
       uart_.close
@@ -548,7 +549,7 @@ class SQNSSHDN extends at.Command:
   static TIMEOUT ::= Duration --s=10
 
   constructor:
-    super.set "+SQNSSHDN" --timeout=TIMEOUT
+    super.action "+SQNSSHDN" --timeout=TIMEOUT
 
 class SQNSD extends at.Command:
   static TCP-TIMEOUT ::= Duration --s=20

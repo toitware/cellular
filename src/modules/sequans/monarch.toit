@@ -48,16 +48,25 @@ class MonarchService extends CellularServiceProvider:
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:
-    // TODO(kasper): If power or reset are given, we should probably
-    // throw an exception.
     return Monarch port logger
+        --power=power
+        --reset=reset
         --uart-baud-rates=baud-rates or [921_600]
 
 /**
 Driver for Sequans Monarch, GSM communicating over NB-IoT & M1.
 */
 class Monarch extends SequansCellular:
-  constructor port/uart.Port logger/log.Logger --uart-baud-rates/List:
+  power_/gpio.Pin?
+  reset_/gpio.Pin?
+  reset-last_/int? := null
+
+  constructor port/uart.Port logger/log.Logger
+      --power/gpio.Pin?
+      --reset/gpio.Pin?
+      --uart-baud-rates/List:
+    power_ = power
+    reset_ = reset
     super port
         --logger=logger
         --uart-baud-rates=uart-baud-rates
@@ -65,6 +74,17 @@ class Monarch extends SequansCellular:
 
   network-name -> string:
     return "cellular:monarch"
+
+  power-on -> none:
+    if not reset_: return
+    now := Time.monotonic-us --since-wakeup
+    if reset-last_ and now - reset-last_ < 5_000_000: return
+    reset-last_ = now
+    logger.debug "power-on: pulling reset pin"
+    reset_.set 1
+    sleep --ms=10
+    reset_.set 0
+    // TODO(kasper): Consider waiting for +SYSSTART.
 
   on-connected_ session/at.Session:
     // Do nothing.
