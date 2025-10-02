@@ -136,12 +136,15 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   open-network -> net.Interface:
     level := config_.get cellular.CONFIG-LOG-LEVEL --if-absent=: log.INFO-LEVEL
     if level is string:
-      // TODO(floitsch): use TRACE constant.
-      if level == "TRACE": level = 0
-      else if level == "DEBUG": level = log.DEBUG-LEVEL
-      else if level == "INFO": level = log.INFO-LEVEL
-      else if level == "WARN": level = log.WARN-LEVEL
-      else if level == "ERROR": level = log.ERROR-LEVEL
+      LEVELS ::= {
+        // TODO(floitsch): use TRACE constant.
+        "TRACE": 0,
+        "DEBUG": log.DEBUG-LEVEL,
+        "INFO": log.INFO-LEVEL,
+        "WARN": log.WARN-LEVEL,
+        "ERROR": log.ERROR-LEVEL,
+      }
+      level = LEVELS.get level --if-absent=: log.INFO-LEVEL
     logger := log.Logger level log.DefaultTarget --name="cellular"
 
     driver/Cellular? := null
