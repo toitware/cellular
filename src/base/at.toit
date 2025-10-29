@@ -109,7 +109,7 @@ parse-response line/ByteArray --plain=false -> List:
           float.parse
             line.to-string index end
       else:
-        i := int.parse_ line index end --radix=10 --on-error=: null
+        i := int.parse line[index..end] --radix=10 --if-error=: null
         parts.add
           i ? i : line.to-string-non-throwing index end
 
