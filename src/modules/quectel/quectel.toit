@@ -490,7 +490,7 @@ abstract class QuectelCellular extends CellularBase implements Gnss:
 
   set-band-mask_ session/at.Session mask/int:
     // Set mask for both m1 and nbiot.
-    hex-mask:= mask.stringify 16
+    hex-mask:= mask.to-string --radix=16
     session.action "+QCFG=\"band\",0,$hex-mask,$hex-mask"
 
   set-up-psm-urc-handler_ session/at.Session:
