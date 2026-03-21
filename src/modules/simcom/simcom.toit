@@ -23,6 +23,8 @@ CONNECTED-STATE_  ::= 1 << 0
 READ-STATE_       ::= 1 << 1
 CLOSE-STATE_      ::= 1 << 2
 
+// AT Command Manual V1.09, Section 8.2.2: Max response time for CIPSTART
+// is 75 seconds in multi-IP state.
 TIMEOUT-CIPSTART ::= Duration --s=75
 TIMEOUT-CIPSEND  ::= Duration --s=10
 TIMEOUT-CIPRXGET ::= Duration --s=5
@@ -67,6 +69,9 @@ class Socket_:
     unreachable
 
 class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin implements tcp.Socket:
+  // AT Command Manual V1.09, Section 8.2.3: The data length which can be
+  // sent depends on network status. There are at most <size> bytes which
+  // can be sent at a time (max 1460).
   static MAX-SIZE_ ::= 1460
 
   peer-address/net.SocketAddress
@@ -80,9 +85,15 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
   constructor cellular/SimcomCellular id/int .peer-address:
     super cellular id
 
-    // CIPSTART returns OK first, then "<id>, CONNECT OK" when connected.
-    // Both are recognized as OK terminations, so the command completes
-    // on the first OK. The CONNECT OK arrives later and is ignored.
+    // AT Command Manual V1.09, Section 8.2.2 (CIPSTART):
+    // In multi-IP mode (CIPMUX=1):
+    //   AT+CIPSTART=<n>,<mode>,<address>,<port>
+    //   Response: OK (immediate), then <n>, CONNECT OK (async).
+    // Parameters:
+    //   <n>       0..5  Connection number
+    //   <mode>    "TCP" or "UDP"
+    //   <address> IP address or domain name (string)
+    //   <port>    Remote server port (string)
     socket-call: | session/at.Session |
       session.set "+CIPSTART" --timeout=TIMEOUT-CIPSTART [
         get-id_,
@@ -90,7 +101,7 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
         peer-address.ip.stringify,
         "$peer-address.port",
       ]
-    // Wait for the CONNECT OK response.
+    // Wait for the "<n>, CONNECT OK" async response.
     sleep --ms=3000
 
   local-address -> net.SocketAddress:
@@ -107,13 +118,17 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     return in.read
 
   read_ -> ByteArray?:
+    // AT Command Manual V1.09, Section 8.2.26 (CIPRXGET):
+    // Mode 1: URC "+CIPRXGET: 1,<id>" signals data is available.
+    // Mode 2: AT+CIPRXGET=2,<id>,<reqlength>
+    //   Response: +CIPRXGET: 2,<id>,<reqlength>,<cnflength>\r\n<data>
+    //   <reqlength>  Requested bytes (1-1460)
+    //   <cnflength>  Confirmed bytes available (may be less; 0 = no data)
     while true:
       state := cellular_.wait-for-urc_: state_.wait-for READ-STATE_
       if state & CLOSE-STATE_ != 0:
         return null
       else if state & READ-STATE_ != 0:
-        // Response: +CIPRXGET: 2,<id>,<data_len>,<remaining_len>\r\n<data>
-        // Parsed as: [2, id, data_len, remaining, data]
         r := socket-call: | session/at.Session |
           session.set "+CIPRXGET" --timeout=TIMEOUT-CIPRXGET [2, get-id_, MAX-SIZE_]
         out := r.single
@@ -128,6 +143,10 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     if to - from > MAX-SIZE_: to = from + MAX-SIZE_
     data = data.byte-slice from to
 
+    // AT Command Manual V1.09, Section 8.2.3 (CIPSEND):
+    // In multi-IP mode: AT+CIPSEND=<n>,<length>
+    // Module responds with ">" prompt, then we send data.
+    // Response: <n>, SEND OK (normal mode, CIPQSEND=0).
     e := catch --unwind=(: it is not UnavailableException):
       socket-call: | session/at.Session |
         session.set "+CIPSEND" [get-id_, data.byte-size]
@@ -152,6 +171,10 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     // Do nothing.
 
   close:
+    // AT Command Manual V1.09, Section 8.2.6 (CIPCLOSE):
+    // In multi-IP mode: AT+CIPCLOSE=<id>[,<n>]
+    //   <n> 0=slow close (default), 1=quick close.
+    // Response: <id>, CLOSE OK
     if id_:
       id := id_
       closed_
@@ -182,6 +205,10 @@ class UdpSocket extends Socket_ implements udp.Socket:
     remote-address_ = address
     if not connected_:
       connected_ = true
+      // AT Command Manual V1.09, Section 8.2.2 (CIPSTART):
+      // AT+CIPSTART=<n>,"UDP",<address>,<port>
+      // Unlike "UDP SERVICE" on some modules, SIM800L requires a real
+      // remote address for UDP connections.
       socket-call: | session/at.Session |
         session.set "+CIPSTART" --timeout=TIMEOUT-CIPSTART [
           get-id_,
@@ -189,7 +216,7 @@ class UdpSocket extends Socket_ implements udp.Socket:
           address.ip.stringify,
           "$address.port",
         ]
-      // Wait for CONNECT OK.
+      // Wait for "<n>, CONNECT OK" async response.
       sleep --ms=3000
 
   write data/io.Data from/int=0 to/int=data.byte-size -> int:
@@ -275,17 +302,22 @@ abstract class SimcomCellular extends CellularBase:
       --uart-baud-rates=uart-baud-rates
       --use-psm=use-psm
 
-    // URC for data available (manual receive mode).
+    // AT Command Manual V1.09, Section 8.2.26 (CIPRXGET):
+    // URC "+CIPRXGET: 1,<id>" indicates data is available for connection <id>.
+    // Must be enabled with AT+CIPRXGET=1 before opening connections.
     at-session.register-urc "+CIPRXGET":: | args |
       if args[0] == 1:
-        // Data available notification.
         sockets_.get args[1]
             --if-present=: it.state_.set-state READ-STATE_
 
-    // URC for DNS resolution results.
+    // AT Command Manual V1.09, Section 8.2.14 (CDNSGIP):
+    // Async DNS resolution. AT+CDNSGIP=<domain> returns OK immediately,
+    // then sends URC:
+    //   Success: +CDNSGIP: 1,<domain name>,<IP1>[,<IP2>]
+    //   Failure: +CDNSGIP: 0,<dns error code>
+    //     Error codes: 3=NETWORK ERROR, 8=DNS COMMON ERROR.
     at-session.register-urc "+CDNSGIP":: | args |
       if args[0] == 1 and args.size >= 3:
-        // Success: +CDNSGIP: 1,"hostname","ip1"[,"ip2"]
         if resolve_: resolve_.set args[2]
       else:
         if resolve_: resolve_.set --exception "DNS resolution failed: $args"
@@ -296,42 +328,49 @@ abstract class SimcomCellular extends CellularBase:
       --data-marker='>'
       --command-delay=Duration --ms=20
 
-    session.add-ok-termination "SEND OK"
-    session.add-ok-termination "SHUT OK"
-    session.add-ok-termination "CLOSE OK"
-    session.add-ok-termination "CONNECT OK"
+    // SIM800L non-standard termination strings.
+    // In multi-IP mode these are prefixed with "<id>, " (e.g. "0, SEND OK").
+    // The AT session's is-terminating_ handles the prefix stripping.
+    session.add-ok-termination "SEND OK"    // AT Command Manual Section 8.2.3.
+    session.add-ok-termination "SHUT OK"    // AT Command Manual Section 8.2.7.
+    session.add-ok-termination "CLOSE OK"   // AT Command Manual Section 8.2.6.
+    session.add-ok-termination "CONNECT OK" // AT Command Manual Section 8.2.2.
     session.add-error-termination "SEND FAIL"
     session.add-error-termination "+CME ERROR"
     session.add-error-termination "+CMS ERROR"
 
-    // CIPRXGET response parser.
-    // Response format: +CIPRXGET: <mode>,<id>,<data_len>,<remaining_len>\r\n<data>
+    // AT Command Manual V1.09, Section 8.2.26 (CIPRXGET) response parser.
+    // Mode 1 (URC):  +CIPRXGET: 1,<id>
+    // Mode 2 (read): +CIPRXGET: 2,<id>,<reqlength>,<cnflength>\r\n<data>
+    //   <reqlength>  Requested bytes (1-1460)
+    //   <cnflength>  Confirmed bytes (may be less; 0 = no data)
+    // Mode 4 (query): +CIPRXGET: 4,<id>,<cnflength>
     session.add-response-parser "+CIPRXGET" :: | reader/io.Reader |
       line := reader.read-bytes-up-to '\r'
       parts := at.parse-response line
       if parts[0] == 1:
-        // Data notification URC: +CIPRXGET: 1,<id>
         parts
       else if parts[0] == 2:
-        // Data read response: +CIPRXGET: 2,<id>,<data_len>,<remaining_len>
         data-len := parts[2]
         if data-len > 0:
           reader.skip 1  // Skip '\n'.
           parts.add (reader.read-bytes data-len)
         parts
       else if parts[0] == 4:
-        // Query unread data: +CIPRXGET: 4,<id>,<unread_len>
         parts
       else:
         parts
 
-    // CCID response parser (ICCID is too large for int).
+    // AT Command Manual V1.09, Section 6.2.23 (CCID): Show ICCID.
+    // Response is a raw number too large for 64-bit int, so custom parser
+    // reads it as a string.
     session.add-response-parser "+CCID" :: | reader/io.Reader |
       iccid := reader.read-string-up-to session.s3
       [iccid.trim]
 
-    // CIFSR doesn't have a "+CIFSR:" prefix - it just returns the IP address.
-    // This is handled by the AT session as an unrecognized response line.
+    // AT Command Manual V1.09, Section 8.2.11 (CIFSR): Get local IP address.
+    // Response is just "<IP address>" with no "+CIFSR:" prefix and no "OK".
+    // Handled by the AT session as an unrecognized response line.
 
     return session
 
@@ -339,6 +378,10 @@ abstract class SimcomCellular extends CellularBase:
     return true
 
   close:
+    // AT Command Manual V1.09:
+    // Section 8.2.7 (CIPSHUT): Deactivate GPRS PDP context and close all
+    //   connections. Response: SHUT OK. Max response time: 65 seconds.
+    // Section 6.2.2 (CPOWD): Power off. AT+CPOWD=1 sends "NORMAL POWER DOWN".
     try:
       sockets_.values.do: it.closed_
       catch: with-timeout --ms=3_000: at_.do: | session/at.Session |
@@ -361,7 +404,9 @@ abstract class SimcomCellular extends CellularBase:
     failed-to-connect = true
 
     done := monitor.Latch
-    // SIM800L only supports GSM: +CREG and +CGREG.
+    // SIM800L only supports GSM/GPRS, so we use +CGREG (GPRS registration)
+    // instead of +CEREG (LTE). See AT Command Manual Section 7.2.10.
+    // +CGREG URC states: 1=registered home, 5=registered roaming.
     registrations := { "+CGREG" }
     failed := {}
 
@@ -408,6 +453,8 @@ abstract class SimcomCellular extends CellularBase:
       wait-for-sim_ session
 
   set-baud-rate_ session/at.Session baud-rate/int:
+    // AT Command Manual V1.09, Section 2.2.41 (IPR): Set TE-TA fixed local rate.
+    // "&W" saves the profile to NVRAM.
     session.action "+IPR=$baud-rate;&W"
     uart_.baud-rate = baud-rate
     sleep --ms=100
@@ -473,7 +520,8 @@ class SimcomInterface_ extends CloseableNetwork implements net.Interface:
     throw "UNIMPLEMENTED"
 
   socket-id_ -> int:
-    // SIM800L supports 6 connections (IDs 0-5) in multi-connection mode.
+    // AT Command Manual V1.09, Section 8.2.2 (CIPSTART):
+    // <n> 0..5, connection number in multi-IP mode.
     6.repeat:
       if not cellular_.sockets_.contains it: return it
     throw
