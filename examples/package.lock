@@ -1,7 +1,10 @@
 sdk: ^2.0.0-alpha.144
 prefixes:
+  cellular: ..
   http: pkg-http
 packages:
+  ..:
+    path: ..
   pkg-http:
     url: github.com/toitlang/pkg-http
     name: http

@@ -326,7 +326,7 @@ class Session:
         if is-exception: abort_ exception.value
 
     if result := processor_.wait-for-result command-deadline_:
-      if not ok-termination_.contains result.code.to-byte-array:
+      if not is-ok-termination_ result.code.to-byte-array:
         exception := result.exception
         on-error.call exception result
       return result
@@ -361,8 +361,30 @@ class Session:
         return
     logger_.with-level log.DEBUG-LEVEL: it.debug "<- *ignored* [URC] $urc $response"
 
+  /**
+  Checks whether the $line is a termination string.
+
+  Also handles prefixed terminations like "<id>, SEND OK" used by some
+    modules (e.g. SIM800L in multi-connection mode).
+  */
   is-terminating_ line/ByteArray:
-    return ok-termination_.contains line or error-termination_.contains line
+    return is-ok-termination_ line or is-error-termination_ line
+
+  is-ok-termination_ line/ByteArray -> bool:
+    if ok-termination_.contains line: return true
+    return is-prefixed-termination_ line ok-termination_
+
+  is-error-termination_ line/ByteArray -> bool:
+    if error-termination_.contains line: return true
+    return is-prefixed-termination_ line error-termination_
+
+  static is-prefixed-termination_ line/ByteArray terminations/List -> bool:
+    str := line.to-string-non-throwing
+    comma := str.index-of ", "
+    if comma >= 0:
+      suffix := (str.copy comma + 2).to-byte-array
+      return terminations.contains suffix
+    return false
 
   is-echo_ line/ByteArray:
     return line.size >= 3 and line[0] == 'A' and line[1] == 'T' and line[2] == '+'
