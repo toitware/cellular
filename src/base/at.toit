@@ -141,6 +141,7 @@ class Session:
   response-parsers_/Map ::= {:}
   ok-termination_/List ::= ["OK".to-byte-array]
   error-termination_/List ::= ["ERROR".to-byte-array]
+  on-unhandled-line_/Lambda? := null
 
   s3-data_/ByteArray
 
@@ -214,6 +215,21 @@ class Session:
   unregister-urc name/string:
     urc-handlers_.remove name
       --if-absent=: throw "urc not registered: $name"
+
+  /**
+  Sets a callback for non-URC plain lines.
+
+  Some modules send asynchronous responses that are not URCs (no "+" prefix).
+    For example, the SIM800L sends "<id>, CONNECT OK" after CIPSTART. These
+    lines can arrive at any time, including during other active commands.
+
+  The callback receives the line as a string and must return true if it
+    handled the line. When no command is active, unhandled lines are
+    silently discarded. When a command is active, unhandled lines are
+    added as plain-text responses.
+  */
+  on-unhandled-line= callback/Lambda?:
+    on-unhandled-line_ = callback
 
   /**
   Executes a `read` command with the $command-name.
@@ -326,7 +342,7 @@ class Session:
         if is-exception: abort_ exception.value
 
     if result := processor_.wait-for-result command-deadline_:
-      if not ok-termination_.contains result.code.to-byte-array:
+      if not is-ok-termination_ result.code.to-byte-array:
         exception := result.exception
         on-error.call exception result
       return result
@@ -361,8 +377,30 @@ class Session:
         return
     logger_.with-level log.DEBUG-LEVEL: it.debug "<- *ignored* [URC] $urc $response"
 
+  /**
+  Checks whether the $line is a termination string.
+
+  Also handles prefixed terminations like "<id>, SEND OK" used by some
+    modules (e.g. SIM800L in multi-connection mode).
+  */
   is-terminating_ line/ByteArray:
-    return ok-termination_.contains line or error-termination_.contains line
+    return is-ok-termination_ line or is-error-termination_ line
+
+  is-ok-termination_ line/ByteArray -> bool:
+    if ok-termination_.contains line: return true
+    return is-prefixed-termination_ line ok-termination_
+
+  is-error-termination_ line/ByteArray -> bool:
+    if error-termination_.contains line: return true
+    return is-prefixed-termination_ line error-termination_
+
+  static is-prefixed-termination_ line/ByteArray terminations/List -> bool:
+    str := line.to-string-non-throwing
+    comma := str.index-of ", "
+    if comma >= 0:
+      suffix := (str.copy comma + 2).to-byte-array
+      return terminations.contains suffix
+    return false
 
   is-echo_ line/ByteArray:
     return line.size >= 3 and line[0] == 'A' and line[1] == 'T' and line[2] == '+'
@@ -385,7 +423,12 @@ class Session:
         logger_.with-level log.DEBUG-LEVEL: it.debug "<- $(%c data-marker) *no data*"
       else if c >= 32:
         if not command_:
-          reader_.skip-up-to s3
+          line := reader_.read-bytes-up-to s3
+          str := line.to-string-non-throwing
+          handled := on-unhandled-line_ and (on-unhandled-line_.call str)
+          if handled:
+            logger_.with-level log.DEBUG-LEVEL: it.debug "<- $str (unhandled)"
+          // Discard unhandled lines when no command is active.
         else:
           read-plain_
       else:
@@ -438,6 +481,14 @@ class Session:
     if is-echo_ line: return
     if is-terminating_ line:
       complete-command_ line.to-string
+      return
+
+    // Check if the callback handles this line (e.g., stray
+    // "<n>, CONNECT OK" that arrived during another command).
+    str := line.to-string-non-throwing
+    handled := on-unhandled-line_ and (on-unhandled-line_.call str)
+    if handled:
+      logger_.with-level log.DEBUG-LEVEL: it.debug "  (dispatched via callback)"
       return
 
     if command_:
