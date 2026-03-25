@@ -15,6 +15,10 @@ containers, providing a high-level network interface for standalone applications
 
 - [Monarch](src/modules/sequans/monarch.toit)
 
+### SIMCom
+
+- [SIM800L](src/modules/simcom/sim800l.toit) (GSM/GPRS 2G) — [documentation](src/modules/simcom/README.md)
+
 ### u-blox
 
 - [Sara R4](src/modules/ublox/sara_r4.toit)
