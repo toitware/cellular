@@ -85,15 +85,22 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
   constructor cellular/SimcomCellular id/int .peer-address:
     super cellular id
 
+  local-address -> net.SocketAddress:
+    return net.SocketAddress
+      net.IpAddress.parse "127.0.0.1"
+      0
+
+  /**
+  Sends CIPSTART and waits for the async CONNECT OK response.
+
+  Must be called after the socket is registered in the socket map so
+    that the on-unhandled-line callback can find it.
+  */
+  connect_:
     // AT Command Manual V1.09, Section 8.2.2 (CIPSTART):
     // In multi-IP mode (CIPMUX=1):
     //   AT+CIPSTART=<n>,<mode>,<address>,<port>
     //   Response: OK (immediate), then <n>, CONNECT OK (async).
-    // Parameters:
-    //   <n>       0..5  Connection number
-    //   <mode>    "TCP" or "UDP"
-    //   <address> IP address or domain name (string)
-    //   <port>    Remote server port (string)
     socket-call: | session/at.Session |
       session.set "+CIPSTART" --timeout=TIMEOUT-CIPSTART [
         get-id_,
@@ -101,18 +108,9 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
         peer-address.ip.stringify,
         "$peer-address.port",
       ]
-    // Wait for the "<n>, CONNECT OK" async response.
-    sleep --ms=3000
-
-  local-address -> net.SocketAddress:
-    return net.SocketAddress
-      net.IpAddress.parse "127.0.0.1"
-      0
-
-  connect_:
-    // On SIM800L, the connection is established after CIPSTART returns OK.
-    // The "<id>, CONNECT OK" notification is not a standard URC and is
-    // handled by the sleep in the constructor.
+    // Wait for the async "<n>, CONNECT OK" response, dispatched by
+    // the on-unhandled-line callback.
+    cellular_.wait-for-urc_: state_.wait-for CONNECTED-STATE_
 
   read -> ByteArray?:
     return in.read
@@ -131,9 +129,21 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
       else if state & READ-STATE_ != 0:
         r := socket-call: | session/at.Session |
           session.set "+CIPRXGET" --timeout=TIMEOUT-CIPRXGET [2, get-id_, MAX-SIZE_]
-        out := r.single
-        data-len := out[2]
-        if data-len > 0: return out[4]
+        // The response may include mode 1 URCs for other connections
+        // that arrived during the command. Dispatch them and find
+        // the mode 2 data response.
+        data-response := null
+        r.responses.do: | resp |
+          if resp[0] == 1:
+            cellular_.sockets_.get resp[1]
+                --if-present=: it.state_.set-state READ-STATE_
+          else if resp[0] == 2:
+            data-response = resp
+        if not data-response:
+          state_.clear READ-STATE_
+          continue
+        data-len := data-response[2]
+        if data-len > 0: return data-response[4]
         state_.clear READ-STATE_
       else:
         throw "SOCKET ERROR"
@@ -147,7 +157,7 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
     // In multi-IP mode: AT+CIPSEND=<n>,<length>
     // Module responds with ">" prompt, then we send data.
     // Response: <n>, SEND OK (normal mode, CIPQSEND=0).
-    e := catch --unwind=(: it is not UnavailableException):
+    catch --unwind=(: it is not UnavailableException):
       socket-call: | session/at.Session |
         session.set "+CIPSEND" [get-id_, data.byte-size]
             --timeout=TIMEOUT-CIPSEND
@@ -180,13 +190,18 @@ class TcpSocket extends Socket_ with io.CloseableInMixin io.CloseableOutMixin im
       closed_
       id_ = null
       try:
-        cellular_.at_.do: | session/at.Session |
-          if not session.is-closed:
-            session.set "+CIPCLOSE" [id]
+        // The connection may already be closed by the remote side
+        // ("<n>, CLOSED" notification), so tolerate errors here.
+        catch:
+          cellular_.at_.do: | session/at.Session |
+            if not session.is-closed:
+              session.set "+CIPCLOSE" [id]
       finally:
         cellular_.sockets_.remove id
 
   mtu -> int:
+    // Standard IP MTU (1500). The per-send limit MAX-SIZE_ (1460) is
+    // lower because it accounts for TCP/IP header overhead.
     return 1500
 
 class UdpSocket extends Socket_ implements udp.Socket:
@@ -216,8 +231,8 @@ class UdpSocket extends Socket_ implements udp.Socket:
           address.ip.stringify,
           "$address.port",
         ]
-      // Wait for "<n>, CONNECT OK" async response.
-      sleep --ms=3000
+      // Wait for the async "<n>, CONNECT OK" response.
+      cellular_.wait-for-urc_: state_.wait-for CONNECTED-STATE_
 
   write data/io.Data from/int=0 to/int=data.byte-size -> int:
     if not remote-address_: throw "NOT_CONNECTED"
@@ -249,13 +264,23 @@ class UdpSocket extends Socket_ implements udp.Socket:
         return null
       else if state & READ-STATE_ != 0:
         // Response: +CIPRXGET: 2,<id>,<data_len>,<remaining>\r\n<data>
-        // Parsed as: [2, id, data_len, remaining, data]
-        res := socket-call: | session/at.Session |
-          (session.set "+CIPRXGET" --timeout=TIMEOUT-CIPRXGET [2, get-id_, 1460]).single
-        data-len := res[2]
+        // May also include mode 1 URCs for other connections.
+        r := socket-call: | session/at.Session |
+          session.set "+CIPRXGET" --timeout=TIMEOUT-CIPRXGET [2, get-id_, 1460]
+        data-response := null
+        r.responses.do: | resp |
+          if resp[0] == 1:
+            cellular_.sockets_.get resp[1]
+                --if-present=: it.state_.set-state READ-STATE_
+          else if resp[0] == 2:
+            data-response = resp
+        if not data-response:
+          state_.clear READ-STATE_
+          continue
+        data-len := data-response[2]
         if data-len > 0:
           return udp.Datagram
-            res[4]
+            data-response[4]
             remote-address_ or (net.SocketAddress (net.IpAddress.parse "0.0.0.0") 0)
         state_.clear READ-STATE_
       else:
@@ -266,9 +291,10 @@ class UdpSocket extends Socket_ implements udp.Socket:
       id := id_
       id_ = null
       try:
-        cellular_.at_.do: | session/at.Session |
-          if not session.is-closed:
-            session.set "+CIPCLOSE" [id]
+        catch:
+          cellular_.at_.do: | session/at.Session |
+            if not session.is-closed:
+              session.set "+CIPCLOSE" [id]
       finally:
         closed_
         cellular_.sockets_.remove id
@@ -322,6 +348,14 @@ abstract class SimcomCellular extends CellularBase:
       else:
         if resolve_: resolve_.set --exception "DNS resolution failed: $args"
 
+    // AT Command Manual V1.09, Section 8.2.2 (CIPSTART):
+    // In multi-IP mode, CIPSTART returns OK immediately, then sends
+    // "<n>, CONNECT OK" or "<n>, CONNECT FAIL" asynchronously. These
+    // are not URCs (no "+" prefix), so we handle them via the
+    // unhandled-line callback.
+    at-session.on-unhandled-line= :: | line/string |
+      handle-unhandled-line_ line  // Returns true if handled.
+
   static configure-at_ uart/uart.Port logger/log.Logger -> at.Session:
     session := at.Session uart.in uart.out
       --logger=logger
@@ -334,7 +368,9 @@ abstract class SimcomCellular extends CellularBase:
     session.add-ok-termination "SEND OK"    // AT Command Manual Section 8.2.3.
     session.add-ok-termination "SHUT OK"    // AT Command Manual Section 8.2.7.
     session.add-ok-termination "CLOSE OK"   // AT Command Manual Section 8.2.6.
-    session.add-ok-termination "CONNECT OK" // AT Command Manual Section 8.2.2.
+    // CONNECT OK is handled by the on-unhandled-line callback (not as a
+    // termination) because it arrives asynchronously and could interfere
+    // with other active commands via is-prefixed-termination_.
     session.add-error-termination "SEND FAIL"
     session.add-error-termination "+CME ERROR"
     session.add-error-termination "+CMS ERROR"
@@ -362,8 +398,9 @@ abstract class SimcomCellular extends CellularBase:
         parts
 
     // AT Command Manual V1.09, Section 6.2.23 (CCID): Show ICCID.
-    // Response is a raw number too large for 64-bit int, so custom parser
-    // reads it as a string.
+    // ICCIDs are 19-20 digits. A 64-bit signed int holds up to ~9.2×10^18
+    // (19 digits), so 20-digit ICCIDs overflow. The custom parser reads the
+    // value as a string to avoid inconsistent int parsing.
     session.add-response-parser "+CCID" :: | reader/io.Reader |
       iccid := reader.read-string-up-to session.s3
       [iccid.trim]
@@ -376,6 +413,32 @@ abstract class SimcomCellular extends CellularBase:
 
   support-gsm_ -> bool:
     return true
+
+  /**
+  Handles asynchronous non-URC lines like "<n>, CONNECT OK".
+
+  Returns true if the line was recognized and handled, false otherwise.
+    This is called both when no command is active and during active
+    commands to prevent stray lines from corrupting command responses.
+  */
+  handle-unhandled-line_ line/string -> bool:
+    comma := line.index-of ", "
+    if comma < 0: return false
+    id := int.parse line[..comma] --if-error=: return false
+    suffix := line[comma + 2..]
+    if suffix == "CONNECT OK":
+      sockets_.get id
+          --if-present=: it.state_.set-state CONNECTED-STATE_
+      return true
+    else if suffix == "CONNECT FAIL" or suffix == "ALREADY CONNECT":
+      sockets_.get id
+          --if-present=: it.state_.set-state CLOSE-STATE_
+      return true
+    else if suffix == "CLOSED":
+      sockets_.get id
+          --if-present=: it.state_.set-state CLOSE-STATE_
+      return true
+    return false
 
   close:
     // AT Command Manual V1.09:
@@ -514,6 +577,7 @@ class SimcomInterface_ extends CloseableNetwork implements net.Interface:
     id := socket-id_
     socket := TcpSocket cellular_ id address
     cellular_.sockets_.update id --if-absent=(: socket): throw "socket already exists"
+    socket.connect_
     return socket
 
   tcp-listen port/int -> tcp.ServerSocket:

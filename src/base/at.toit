@@ -141,6 +141,7 @@ class Session:
   response-parsers_/Map ::= {:}
   ok-termination_/List ::= ["OK".to-byte-array]
   error-termination_/List ::= ["ERROR".to-byte-array]
+  on-unhandled-line_/Lambda? := null
 
   s3-data_/ByteArray
 
@@ -214,6 +215,21 @@ class Session:
   unregister-urc name/string:
     urc-handlers_.remove name
       --if-absent=: throw "urc not registered: $name"
+
+  /**
+  Sets a callback for non-URC plain lines.
+
+  Some modules send asynchronous responses that are not URCs (no "+" prefix).
+    For example, the SIM800L sends "<id>, CONNECT OK" after CIPSTART. These
+    lines can arrive at any time, including during other active commands.
+
+  The callback receives the line as a string and must return true if it
+    handled the line. When no command is active, unhandled lines are
+    silently discarded. When a command is active, unhandled lines are
+    added as plain-text responses.
+  */
+  on-unhandled-line= callback/Lambda?:
+    on-unhandled-line_ = callback
 
   /**
   Executes a `read` command with the $command-name.
@@ -407,7 +423,12 @@ class Session:
         logger_.with-level log.DEBUG-LEVEL: it.debug "<- $(%c data-marker) *no data*"
       else if c >= 32:
         if not command_:
-          reader_.skip-up-to s3
+          line := reader_.read-bytes-up-to s3
+          str := line.to-string-non-throwing
+          handled := on-unhandled-line_ and (on-unhandled-line_.call str)
+          if handled:
+            logger_.with-level log.DEBUG-LEVEL: it.debug "<- $str (unhandled)"
+          // Discard unhandled lines when no command is active.
         else:
           read-plain_
       else:
@@ -460,6 +481,14 @@ class Session:
     if is-echo_ line: return
     if is-terminating_ line:
       complete-command_ line.to-string
+      return
+
+    // Check if the callback handles this line (e.g., stray
+    // "<n>, CONNECT OK" that arrived during another command).
+    str := line.to-string-non-throwing
+    handled := on-unhandled-line_ and (on-unhandled-line_.call str)
+    if handled:
+      logger_.with-level log.DEBUG-LEVEL: it.debug "  (dispatched via callback)"
       return
 
     if command_:

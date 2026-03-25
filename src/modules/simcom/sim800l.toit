@@ -14,12 +14,12 @@ import ...base.cellular as cellular
 import ...base.service show CellularServiceProvider
 
 main:
-  service := SIM800LService
+  service := Sim800lService
   service.install
 
 // --------------------------------------------------------------------------
 
-class SIM800LService extends CellularServiceProvider:
+class Sim800lService extends CellularServiceProvider:
   constructor:
     super "simcom/sim800l" --major=0 --minor=1 --patch=0
 
@@ -33,7 +33,7 @@ class SIM800LService extends CellularServiceProvider:
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:
-    return SIM800L port logger
+    return Sim800l port logger
         --pwrkey=power
         --rst-pin=reset
         --baud-rates=baud-rates
@@ -44,7 +44,7 @@ Driver for SIM800L, GSM/GPRS modem.
 The $pwrkey pin corresponds to the PWRKEY pin of the SIM800L module.
 The $rst-pin corresponds to the RST pin.
 */
-class SIM800L extends SimcomCellular:
+class Sim800l extends SimcomCellular:
   pwrkey/gpio.Pin?
   rst-pin/gpio.Pin?
 
@@ -107,7 +107,6 @@ class SIM800L extends SimcomCellular:
         pwrkey.set 1
         sleep --ms=1100
         pwrkey.set 0
-        sleep --ms=3000  // Wait for module to boot and send "RDY" URC.
 
   power-off -> none:
     if not pwrkey: return
