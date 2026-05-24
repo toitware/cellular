@@ -9,7 +9,7 @@ containers, providing a high-level network interface for standalone applications
 
 ### AirM2M (Luat)
 
-- [Air780E / Air780EG](src/modules/luat/air780e.toit) (LTE Cat-1)
+- [Air780E / Air780EG](src/modules/luat/air780e.toit) (LTE Cat-1) — [documentation](src/modules/luat/README.md)
 
 ### Quectel
 

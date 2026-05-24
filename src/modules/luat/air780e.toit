@@ -40,9 +40,13 @@ class Air780eService extends CellularServiceProvider:
 /**
 Driver for the AirM2M Air780E and Air780EG LTE Cat-1 modems.
 
-The Air780E modules do not expose a PWRKEY or reset pin in this setup; the
-  module auto-boots when 5V is applied. The $power-pin therefore drives a
-  relay that gates the modem's 5V supply.
+The Air780E boots as soon as it is powered on. If the board exposes a way
+  to gate the module's power supply from a GPIO, wire it to $power-pin and
+  the driver will use it to cold-boot the modem and to fall back to a hard
+  power-off if the AT-level CPOWD doesn't take. $power-pin is optional —
+  if the module is permanently powered (e.g., on a dev board with a
+  dedicated PWRKEY circuit), leave it null and the driver will rely on
+  CPOWD for shutdown.
 */
 class Air780e extends LuatCellular:
   power-pin/gpio.Pin?
