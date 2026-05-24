@@ -7,6 +7,10 @@ containers, providing a high-level network interface for standalone applications
 
 ## Supported modems
 
+### AirM2M (Luat)
+
+- [Air780E / Air780EG](src/modules/luat/air780e.toit) (LTE Cat-1)
+
 ### Quectel
 
 - [BG96](src/modules/quectel/bg96.toit)
