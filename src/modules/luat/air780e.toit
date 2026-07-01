@@ -26,10 +26,10 @@ class Air780eService extends CellularServiceProvider:
   create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
+      --rx/any
+      --tx/any
+      --rts/any
+      --cts/any
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:

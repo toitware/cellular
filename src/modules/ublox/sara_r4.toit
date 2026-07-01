@@ -26,10 +26,10 @@ class SaraR4Service extends CellularServiceProvider:
   create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
+      --rx/any
+      --tx/any
+      --rts/any
+      --cts/any
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:
@@ -50,13 +50,25 @@ class SaraR4 extends UBloxCellular:
     "+USOCLCFG": [0],
   }
 
-  rx/gpio.Pin?
-  tx/gpio.Pin?
-  rts/gpio.Pin?
-  cts/gpio.Pin?
+  rx/any
+  tx/any
+  rts/any
+  cts/any
   pwr-on/gpio.Pin?
   reset-n/gpio.Pin?
 
+  /**
+  The $rx, $tx, $rts and $cts pins are GPIO numbers. Passing a $gpio.Pin is
+    deprecated; provide the integer GPIO number instead.
+  */
+  // __TYPE-MIGRATION__ rx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rx: int?
+  // __TYPE-MIGRATION__ tx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ tx: int?
+  // __TYPE-MIGRATION__ rts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rts: int?
+  // __TYPE-MIGRATION__ cts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ cts: int?
   constructor port/uart.Port logger/log.Logger
       --.rx=null
       --.tx=null

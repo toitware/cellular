@@ -43,6 +43,18 @@ pin config/Map key/string -> gpio.Pin?:
   pin.set 0  // Drive to in-active.
   return pin
 
+/**
+Reads the GPIO number of a UART pin from the $config.
+
+Returns null if the pin isn't configured. The UART pins are passed as GPIO
+  numbers to the $uart.Port, which reserves and releases them itself.
+*/
+uart-pin config/Map key/string -> int?:
+  value := config.get key
+  if value == null: return null
+  if value is int: return value
+  throw "illegal pin configuration: $key == $value"
+
 abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   // We cellular service has been developed against known
   // versions of the network and cellular APIs. We keep a
@@ -63,10 +75,12 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   // TODO(kasper): Handle the configuration better.
   config_/Map? := null
 
-  rx_/gpio.Pin? := null
-  tx_/gpio.Pin? := null
-  cts_/gpio.Pin? := null
-  rts_/gpio.Pin? := null
+  // The UART pins are GPIO numbers (or null). They are passed to the
+  // $uart.Port which reserves and releases them itself.
+  rx_/int? := null
+  tx_/int? := null
+  cts_/int? := null
+  rts_/int? := null
 
   power-pin_/gpio.Pin? := null
   reset-pin_/gpio.Pin? := null
@@ -106,10 +120,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
   abstract create-driver -> Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
+      --rx/any
+      --tx/any
+      --rts/any
+      --cts/any
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?
@@ -219,10 +233,10 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
         --if-present=: it == cellular.CONFIG-PRIORITY-HIGH
         --if-absent=: false
 
-    tx_  = pin config_ cellular.CONFIG-UART-TX
-    rx_  = pin config_ cellular.CONFIG-UART-RX
-    cts_ = pin config_ cellular.CONFIG-UART-CTS
-    rts_ = pin config_ cellular.CONFIG-UART-RTS
+    tx_  = uart-pin config_ cellular.CONFIG-UART-TX
+    rx_  = uart-pin config_ cellular.CONFIG-UART-RX
+    cts_ = uart-pin config_ cellular.CONFIG-UART-CTS
+    rts_ = uart-pin config_ cellular.CONFIG-UART-RTS
 
     power-pin_ = pin config_ cellular.CONFIG-POWER
     reset-pin_ = pin config_ cellular.CONFIG-RESET
@@ -273,13 +287,23 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
     try:
       log.log log-level "closing" --tags=log-tags
       catch: with-timeout --ms=20_000: driver.close
-      if rts_:
-        rts_.configure --output
-        rts_.set 0
+      // The driver closed the UART above, so the UART pins are no longer
+      // reserved and we can drive/read them directly here.
+      if rts_ != null:
+        rts := gpio.Pin rts_ --output
+        try:
+          rts.set 0
+        finally:
+          rts.close
 
       // It appears as if we have to wait for RX to settle down, before
       // we start to look at the power state.
-      catch: with-timeout --ms=10_000: wait-for-quiescent_ rx_
+      if rx_ != null:
+        rx := gpio.Pin rx_
+        try:
+          catch: with-timeout --ms=10_000: wait-for-quiescent_ rx
+        finally:
+          rx.close
 
       // The call to driver.close sends AT+CPWROFF. If the session wasn't
       // active, this can fail and therefore we probe its power state and
@@ -300,13 +324,12 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       log.log log-level "closed" --tags=log-tags
 
   close-pins_ -> none:
-    if tx_: tx_.close
-    if rx_: rx_.close
-    if cts_: cts_.close
-    if rts_: rts_.close
+    // The UART pins (rx/tx/cts/rts) are reserved and released by the
+    // $uart.Port itself, so we only need to release the control pins here.
     if power-pin_: power-pin_.close
     if reset-pin_: reset-pin_.close
-    tx_ = rx_ = cts_ = rts_ = power-pin_ = reset-pin_ = null
+    tx_ = rx_ = cts_ = rts_ = null
+    power-pin_ = reset-pin_ = null
 
   // Block until a value has been sustained for at least $SUSTAIN_FOR_DURATION_.
   static wait-for-quiescent_ pin/gpio.Pin:

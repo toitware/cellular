@@ -26,10 +26,10 @@ class SaraR5Service extends CellularServiceProvider:
   create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
+      --rx/any
+      --tx/any
+      --rts/any
+      --cts/any
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:
@@ -49,13 +49,25 @@ Driver for Sara-R5, GSM communicating over NB-IoT & M1.
 class SaraR5 extends UBloxCellular:
   static CONFIG_ ::= {:}
 
-  rx/gpio.Pin?
-  tx/gpio.Pin?
-  rts/gpio.Pin?
-  cts/gpio.Pin?
+  rx/any
+  tx/any
+  rts/any
+  cts/any
   pwr-on/gpio.Pin?
   reset-n/gpio.Pin?
 
+  /**
+  The $rx, $tx, $rts and $cts pins are GPIO numbers. Passing a $gpio.Pin is
+    deprecated; provide the integer GPIO number instead.
+  */
+  // __TYPE-MIGRATION__ rx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rx: int?
+  // __TYPE-MIGRATION__ tx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ tx: int?
+  // __TYPE-MIGRATION__ rts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rts: int?
+  // __TYPE-MIGRATION__ cts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ cts: int?
   constructor port/uart.Port logger/log.Logger
       --.rx=null
       --.tx=null
@@ -158,16 +170,25 @@ class SaraR5 extends UBloxCellular:
     // powered up, RX will be high, and if it's powered down, it will
     // be low (ensured by the pull-down).
 
-    rx.configure --input --pull-down
+    // The UART has been closed by this point (see $close), so the RX pin
+    // is no longer reserved and we can drive/read it directly. When the
+    // caller provided a GPIO number we create (and close) a pin for it;
+    // when they provided a (deprecated) gpio.Pin we use it directly.
+    rx-pin/gpio.Pin := rx is int ? (gpio.Pin rx) : (rx as gpio.Pin)
+    created-pin := rx is int
+    try:
+      rx-pin.configure --input --pull-down
 
-    // Run multiple checks of the pin state to ensure that it's not flickering.
-    all-low := true
-    8.repeat:
-      if all-low and rx.get == 1: all-low = false
+      // Run multiple checks of the pin state to ensure that it's not flickering.
+      all-low := true
+      8.repeat:
+        if all-low and rx-pin.get == 1: all-low = false
 
-    // Reconfigure the RX pin as normal input.
-    rx.configure --input
-    return all-low
+      // Reconfigure the RX pin as normal input.
+      rx-pin.configure --input
+      return all-low
+    finally:
+      if created-pin: rx-pin.close
 
 
 class UPSDA extends at.Command:

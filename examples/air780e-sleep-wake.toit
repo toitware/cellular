@@ -32,7 +32,7 @@ main:
   logger := log.Logger log.DEBUG-LEVEL log.DefaultTarget --name="air780e"
 
   power := gpio.Pin PWR-PIN --output
-  port := uart.Port --tx=(gpio.Pin TX-PIN) --rx=(gpio.Pin RX-PIN) --baud-rate=115200
+  port := uart.Port --tx=TX-PIN --rx=RX-PIN --baud-rate=115200
 
   driver := Air780e port logger --power-pin=power --baud-rates=[115_200]
 
