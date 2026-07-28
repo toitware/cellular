@@ -23,6 +23,14 @@ class Sim800lService extends CellularServiceProvider:
   constructor:
     super "simcom/sim800l" --major=0 --minor=1 --patch=0
 
+  // __TYPE-MIGRATION__ rx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rx: int?
+  // __TYPE-MIGRATION__ tx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ tx: int?
+  // __TYPE-MIGRATION__ rts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rts: int?
+  // __TYPE-MIGRATION__ cts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ cts: int?
   create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port

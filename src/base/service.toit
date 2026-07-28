@@ -117,6 +117,14 @@ abstract class CellularServiceProvider extends ProxyingNetworkServiceProvider:
       return connect client arguments
     return super index arguments --gid=gid --client=client
 
+  // __TYPE-MIGRATION__ rx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rx: int?
+  // __TYPE-MIGRATION__ tx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ tx: int?
+  // __TYPE-MIGRATION__ rts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rts: int?
+  // __TYPE-MIGRATION__ cts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ cts: int?
   abstract create-driver -> Cellular
       --logger/log.Logger
       --port/uart.Port
