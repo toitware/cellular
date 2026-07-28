@@ -23,13 +23,21 @@ class Air780eService extends CellularServiceProvider:
   constructor:
     super "luat/air780e" --major=0 --minor=1 --patch=0
 
+  // __TYPE-MIGRATION__ rx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rx: int?
+  // __TYPE-MIGRATION__ tx: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ tx: int?
+  // __TYPE-MIGRATION__ rts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ rts: int?
+  // __TYPE-MIGRATION__ cts: gpio.Pin. Deprecated. Provide an integer instead.
+  // __TYPE-MIGRATION__ cts: int?
   create-driver -> cellular.Cellular
       --logger/log.Logger
       --port/uart.Port
-      --rx/gpio.Pin?
-      --tx/gpio.Pin?
-      --rts/gpio.Pin?
-      --cts/gpio.Pin?
+      --rx/any
+      --tx/any
+      --rts/any
+      --cts/any
       --power/gpio.Pin?
       --reset/gpio.Pin?
       --baud-rates/List?:
